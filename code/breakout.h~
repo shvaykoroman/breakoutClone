@@ -135,6 +135,17 @@ operator+(v2 x, v2 y)
 }
 
 inline v2
+operator-(v2 x, v2 y)
+{
+  v2 result = v2(0,0);
+
+  result.x = x.x-y.x;
+  result.y = x.y-y.y;
+
+  return result;
+}
+
+inline v2
 operator*(v2 vec,f32 value)
 {
   v2 result = v2(0,0);
@@ -143,6 +154,24 @@ operator*(v2 vec,f32 value)
   result.y = vec.y * value;
   
   return result;
+}
+
+inline f32
+dotProduct(v2 vecA, v2 vecB)
+{
+  f32 result = 0;
+
+  result = (vecA.x*vecB.x) + (vecA.y * vecB.y);
+  
+  return result;
+}
+
+#include <math.h>
+
+inline v2
+normalizeVector(v2 x)
+{
+  f32 length = 0;
 }
 
 void gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input,Game_Memory *gameMemory); 
