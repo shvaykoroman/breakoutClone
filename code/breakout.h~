@@ -171,7 +171,11 @@ dotProduct(v2 vecA, v2 vecB)
 inline v2
 normalizeVector(v2 x)
 {
-  f32 length = 0;
+  v2 result = v2(0.0f, 0.0f);
+  f64 length = sqrt(x.x * x.x + x.y * x.y);
+  result.x = (f32)(x.x / length);
+  result.y = (f32)(x.y / length);
+  return result;  
 }
 
 void gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input,Game_Memory *gameMemory); 

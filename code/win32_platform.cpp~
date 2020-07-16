@@ -350,9 +350,9 @@ int WinMain(HINSTANCE hInstance,
 	  Game_Memory gameMemory = {};
 	  gameMemory.permanentStorageSize = MEGABYTES(64);
 	  gameMemory.permanentStorage = VirtualAlloc(0, gameMemory.permanentStorageSize, MEM_COMMIT | MEM_RESERVE,PAGE_READWRITE);
-	  if(gameMemory.permanentStorage)
+	  if(!gameMemory.permanentStorage)
 	    {
-	      assert(gameMemory.permanentStorage)
+	      assert(0)
 	    }
 					
 	  

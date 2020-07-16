@@ -1,5 +1,7 @@
 #include <immintrin.h>
 
+#define DEBUG 1
+
 struct Brick
 {
   v3 color;
@@ -67,8 +69,9 @@ drawRectangle(Game_Framebuffer *framebuffer,f32 realX, f32 realY,f32 width , f32
       yMax = framebuffer->height;
     }
   
+    
   u8 *row = (u8*)framebuffer->memory + (xMin * 4) + (yMin * framebuffer->stride);
-
+  
   for(s32 y = yMin; y < yMax; y++)
     {
       u8 *pixel = row;  
@@ -86,8 +89,7 @@ drawRectangle(Game_Framebuffer *framebuffer,f32 realX, f32 realY,f32 width , f32
 struct Level
 {
   u32 width;
-  u32 height;
-  
+  u32 height;  
   
   u8 *map;  
 };
@@ -169,13 +171,37 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       player.pos.y = framebuffer->height - 20.0f;
       player.color = v3(255.0f,255.0f,255.0f);
       player.size  = v2(100.0f, 20.0f);
-      ball.pos = v2(300.0f,260.0f);//v2(player.pos.x+50.0f,player.pos.y-15.0f);
+      ball.pos = v2(480.0f,350.0f);//v2(player.pos.x+50.0f,player.pos.y-15.0f);
       ball.velocity = v2(0.0f, -200.0f);
       gameState->isInit = true;
     }   
 
+  // TODO(shvaykko): only for debuggin purposes
+#if DEBUG
+  if(input->controller.buttonArrowLeft.isDown)
+    {
+      ball.pos = v2(10.0f,100.0f);
+      ball.velocity = v2(200.0f,0.0f);
+    }
+  if(input->controller.buttonArrowRight.isDown)
+    {
+      ball.pos = v2((f32)framebuffer->width - 10.0f,104.0f);
+      ball.velocity = v2(-200.0f,0.0f);
+    }
+  if(input->controller.buttonArrowUp.isDown)
+    {
+      ball.pos = v2(framebuffer->width / 2.0f, framebuffer->height/2.0f);
+      
+      ball.velocity = v2(0.0f,-200.0f);
+    }
+  // TODO(shvayko):doesn;t work!
+  if(input->controller.buttonArrowDown.isDown)
+    {
+      ball.pos = v2(framebuffer->width / 2.0f, 10.0f);
+      ball.velocity = v2(0.0f,200.0f);
+    }
   
-  
+#endif  
   v2 ddPlayer = v2(0.0f,0.0f);
   if(input->controller.buttonRight.isDown)
     {
@@ -236,20 +262,35 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       if(checkCollision(ball.pos.x, ball.pos.y, ball.pos.x + ballWidth, ball.pos.y + ballHeight,
 		        brick->pos.x, brick->pos.y, brick->pos.x + brickWidth-1.0f, brick->pos.y+brickHeight-1.0f))
 	{
-	  // TODO(shvayko): how to detect from which side collision was occurred
-	  v2 ballToBrick = ball.pos - brick->pos;
+	  //NOTE(shvayko):expects the values in the range of -1 to 1 and values are returned in the range 0 to PI (3.1415927)
+	  	 	  
+	  v2 ballPosCenter  = v2(ball.pos.x + ballWidth / 2.0f, ball.pos.y + ballHeight / 2.0f);
+	  v2 brickPosCenter = v2(brick->pos.x + brickWidth / 2.0f, brick->pos.y + brickHeight / 2.0f);
+	  
+	  v2 ballToBrick = ballPosCenter - brickPosCenter;
 	  ballToBrick    = normalizeVector(ballToBrick);
-	  v2 brickFacing = v2(0.0f, 1.0f);
+	  v2 brickFacing = v2(0.0f, -1.0f);
+
+	  f64 value = dotProduct(ballToBrick, brickFacing);
 	  
-	  f32 angle = acos(dotProduct(ballToBrick,brickFacing));
+	  f64 angle = acos(value);
+
+	  if(angle > 1.5708)
+	    {
+	      ball.velocity.y *= -1.0f;
+	    }
+	  else if(angle > 1.0f && angle < 1.1f)
+	    {
+	      ball.velocity.y *= -1.0f;
+	    }
+	  else
+	    {
+	      ball.velocity.x *= -1.0f;
+	    }
 	  
-	  /*
-	  if()
-	  {
-	  ball.velocity.y *= -1.0f;
-	  }*/
-	  
-	  brick->destroyed = true;	  
+	  brick->destroyed = true;
+	  // TODO(shvayko): can I to do smth better that this?
+	  break; // NOTE(shvayko): I should break here cause i need to detect only 1 collison in 1 frame
 	}
     }
   

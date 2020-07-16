@@ -253,6 +253,22 @@ keyboardMessagesProccessing(Keyboard *input)
 		    {
 		      input->buttonRight.isDown = isDown;
 		    }break;
+		  case VK_LEFT:
+		    {
+		      input->buttonArrowLeft.isDown = isDown;
+		    }break;
+		  case VK_RIGHT:
+		    {
+		      input->buttonArrowRight.isDown = isDown;
+		    }break;
+		  case VK_DOWN:
+		    {
+		      input->buttonArrowDown.isDown = isDown;
+		    }break;
+		  case VK_UP:
+		    {
+		      input->buttonArrowUp.isDown = isDown;
+		    }break;
 		  default:
 		    {
 		  
@@ -380,7 +396,7 @@ int WinMain(HINSTANCE hInstance,
 	      Keyboard zeroController = {};
 	      *newKeyboardInput = zeroController;
 
-	      for(s32 buttonIndex = 0; buttonIndex < 4; buttonIndex++)
+	      for(s32 buttonIndex = 0; buttonIndex < arrayCount(newKeyboardInput->buttons); buttonIndex++)
 		{
 		  newKeyboardInput->buttons[buttonIndex].isDown = oldKeyboardInput->buttons[buttonIndex].isDown;
 		}
