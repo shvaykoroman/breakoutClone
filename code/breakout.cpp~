@@ -171,7 +171,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       player.pos.y = framebuffer->height - 20.0f;
       player.color = v3(255.0f,255.0f,255.0f);
       player.size  = v2(100.0f, 20.0f);
-      ball.pos = v2(500.0f,260.0f);//v2(player.pos.x+50.0f,player.pos.y-15.0f);
+      ball.pos = v2(480.0f,350.0f);//v2(player.pos.x+50.0f,player.pos.y-15.0f);
       ball.velocity = v2(0.0f, -200.0f);
       gameState->isInit = true;
     }   
@@ -185,7 +185,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
     }
   if(input->controller.buttonArrowRight.isDown)
     {
-      ball.pos = v2((f32)framebuffer->width - 10.0f,100.0f);
+      ball.pos = v2((f32)framebuffer->width - 10.0f,104.0f);
       ball.velocity = v2(-200.0f,0.0f);
     }
   if(input->controller.buttonArrowUp.isDown)
@@ -197,7 +197,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   // TODO(shvayko):doesn;t work!
   if(input->controller.buttonArrowDown.isDown)
     {
-      ball.pos = v2(framebuffer->width / 2.0f, 0.0f);
+      ball.pos = v2(framebuffer->width / 2.0f, 10.0f);
       ball.velocity = v2(0.0f,200.0f);
     }
   
@@ -262,21 +262,31 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       if(checkCollision(ball.pos.x, ball.pos.y, ball.pos.x + ballWidth, ball.pos.y + ballHeight,
 		        brick->pos.x, brick->pos.y, brick->pos.x + brickWidth-1.0f, brick->pos.y+brickHeight-1.0f))
 	{
-	  //NOTE(shvayko):expects the values in the range of -1 to 1 and values are returned in the range 0 to PI (3.1415927)	  
-	  
+	  //NOTE(shvayko):expects the values in the range of -1 to 1 and values are returned in the range 0 to PI (3.1415927)
+	  	 	  
 	  v2 ballPosCenter  = v2(ball.pos.x + ballWidth / 2.0f, ball.pos.y + ballHeight / 2.0f);
 	  v2 brickPosCenter = v2(brick->pos.x + brickWidth / 2.0f, brick->pos.y + brickHeight / 2.0f);
 	  
 	  v2 ballToBrick = ballPosCenter - brickPosCenter;
 	  ballToBrick    = normalizeVector(ballToBrick);
 	  v2 brickFacing = v2(0.0f, -1.0f);
-	  
-	  f32 value = dotProduct(ballToBrick,brickFacing);
+
+	  f64 value = dotProduct(ballToBrick, brickFacing);
 	  
 	  f64 angle = acos(value);
-	  
-	  
-	  
+
+	  if(angle > 1.5708)
+	    {
+	      ball.velocity.y *= -1.0f;
+	    }
+	  else if(angle > 1.0f && angle < 1.1f)
+	    {
+	      ball.velocity.y *= -1.0f;
+	    }
+	  else
+	    {
+	      ball.velocity.x *= -1.0f;
+	    }
 	  
 	  brick->destroyed = true;
 	  // TODO(shvayko): can I to do smth better that this?

@@ -20,3 +20,9 @@ struct Backbuffer
   
   void *memory;
 };
+
+
+enum Win32_Error_Messages
+  {
+   WIN32_FATAL_ERROR,
+  };

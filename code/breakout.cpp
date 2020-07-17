@@ -24,6 +24,56 @@ struct Player
   v2 size;
 };
 
+struct WAVE_header
+{
+  u32 RIFFID;
+  u32 size;
+  u32 WAVEID;  
+};
+
+#define RIFF_CODE(a,b,c,d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
+enum
+{ 
+ WAVE_CHUNKID_fmt,
+ WAVE_CHUNKID_RIFF,
+ WAVE_CHUNKID_WAVE,
+};
+
+struct WAVE_fmt
+{
+  u16 wFormatTag;
+  u16 nChannels;
+  u32 nSamplesPerSec;
+  u32 nAvgBytesPerSec;
+  u16 nBlockAlign;
+  u16 wBitsPerSample;
+  u16 cbSize;
+  u16 wValidBitsPerSample;
+  u32 dwChannelMask;
+  s8 SubFormat[16];  
+};
+
+struct WAVE_chunk
+{
+  u32 ID;
+  u32 size;
+};
+
+struct loaded_sound
+{
+
+};
+
+loaded_sound
+loadWAVEFile()
+{
+  loaded_sound result = {};
+
+  
+  
+  return result;
+}
+
 bool
 checkCollision(f32 minx1, f32 miny1, f32 maxx1, f32 maxy1,
 	       f32 minx2, f32 miny2, f32 maxx2, f32 maxy2)
@@ -289,7 +339,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	    }
 	  
 	  brick->destroyed = true;
-	  // TODO(shvayko): can I to do smth better that this?
+	  // TODO(shvayko): can I to do smth better than this?
 	  break; // NOTE(shvayko): I should break here cause i need to detect only 1 collison in 1 frame
 	}
     }

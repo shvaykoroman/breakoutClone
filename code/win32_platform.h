@@ -3,6 +3,12 @@ typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
 global direct_sound_create *directSoundCreateProc;
 
+struct File_content
+{
+  u32  size;
+  void *memory;
+};
+
 struct Window_dim
 {
   s32 width;
