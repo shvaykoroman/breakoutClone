@@ -44,13 +44,17 @@ struct Keyboard
 {
   union
   {
-    Button_Status buttons[4];
+    Button_Status buttons[8];
     struct
     {
       Button_Status buttonUp;
       Button_Status buttonDown;
       Button_Status buttonLeft;
       Button_Status buttonRight;
+      Button_Status buttonArrowLeft;
+      Button_Status buttonArrowRight;
+      Button_Status buttonArrowUp;
+      Button_Status buttonArrowDown;
     };
   };  
 };

@@ -15,6 +15,36 @@ global Backbuffer gBackbuffer;
 global LPDIRECTSOUNDBUFFER gSecondaryBuffer;
 global HWND gWindowHandle;
 
+File_content
+readFile(char *filename)
+{
+  File_content result = {};
+  HANDLE fileHandle = CreateFileA(filename,GENERIC_READ,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
+
+  if(fileHandle != INVALID_HANDLE_VALUE)
+    {
+      LARGE_INTEGER fileSize;
+      GetFileSizeEx(fileHandle, &fileSize);
+      result.size = (u32)fileSize.QuadPart;
+      result.memory = VirtualAlloc(0, (size_t)fileSize.QuadPart, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+      u32 bytesToRead = result.size;
+      DWORD bytesReaden;
+      if(ReadFile(fileHandle,result.memory,bytesToRead, &bytesReaden,0))
+	{
+	  // TODO(shvayko): logging file read success
+	}
+      else
+	{
+	  VirtualFree(result.memory, 0, MEM_RELEASE);
+	}
+    }
+  else
+    {
+      // TODO(shvayko): logging
+    }
+  return result;
+}
+
 internal void 
 win32ErrorMessage(HWND window, char *message, Win32_Error_Messages type)
 {
@@ -346,6 +376,14 @@ int WinMain(HINSTANCE hInstance,
   windowClass.hCursor       = LoadCursorA(0, IDC_ARROW);
   windowClass.lpszClassName = WINDOW_CLASS_NAME;
 
+  char *filename = __FILE__;  
+  File_content fileContent = readFile(filename);
+
+  if(fileContent.memory)
+    {
+      VirtualFree(fileContent.memory,0, MEM_RELEASE);
+    }
+  
   if(RegisterClassA(&windowClass))
     {
       HWND window = CreateWindowExA(
@@ -452,7 +490,7 @@ int WinMain(HINSTANCE hInstance,
 		      *sampleOut++ = sampleValue;
 		    }
 		}
-
+	      
 	      gSecondaryBuffer->Play(0, 0,DSBPLAY_LOOPING);
 #endif
 	      	      	      	      

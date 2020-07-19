@@ -182,4 +182,12 @@ normalizeVector(v2 x)
   return result;  
 }
 
+
+struct File_content
+{
+  u32  size;
+  void *memory;
+};
+
+File_content readFile(char *filename);
 void gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input,Game_Memory *gameMemory); 

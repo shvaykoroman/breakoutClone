@@ -29,7 +29,8 @@ readFile(char *filename)
       result.memory = VirtualAlloc(0, (size_t)fileSize.QuadPart, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
       u32 bytesToRead = result.size;
       DWORD bytesReaden;
-      if(ReadFile(fileHandle,result.memory,bytesToRead, &bytesReaden,0))
+      if(ReadFile(fileHandle,result.memory,bytesToRead, &bytesReaden,0)
+	 && bytesToRead == bytesReaden)
 	{
 	  // TODO(shvayko): logging file read success
 	}
@@ -363,6 +364,10 @@ int WinMain(HINSTANCE hInstance,
 	    LPSTR     lpCmdLine,
 	    int       nShowCmd)
 {
+
+  //char filenamePath[MAX_PATH];
+
+  
   
   LARGE_INTEGER performanceFreqRes;
   QueryPerformanceFrequency(&performanceFreqRes);
