@@ -270,10 +270,7 @@ Brick bricks[128];
 s32 nextBrick = 0;
 global Player player;
 global Ball   ball;
-global f32 brickWidth  = 64.0f;
-global f32 brickHeight = 21.0f;
-global f32 ballWidth   = 10.0f;
-global f32 ballHeight  = 10.0f;
+
 #define levelMapHeight   10
 #define levelMapWidth    20
 
@@ -298,26 +295,31 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
     }; 
 
   Level level = {levelMapWidth, levelMapHeight, 0,(u8*)levelMap1};
-  
+
   u8 levelMap2[levelMapHeight][levelMapWidth] =
     {
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-     {0,0,0,0,0,0,2,1,2,1,2,1,2,1,2,0,0,0,0,0},
-     {0,0,0,0,0,0,1,2,1,2,1,2,1,2,1,0,0,0,0,0},
-     {0,0,0,0,0,0,2,1,2,1,2,1,2,1,2,0,0,0,0,0},
-     {0,0,0,0,0,0,1,2,1,2,1,2,1,2,1,0,0,0,0,0},
-     {0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0},
-     {0,0,0,0,0,0,2,2,2,2,2,2,2,2,2,0,0,0,0,0},
-     {0,0,0,0,0,0,0,1,2,1,2,1,2,1,2,0,0,0,0,0},
-     {0,0,0,0,0,0,1,2,2,1,1,2,2,1,1,0,0,0,0,0},
+     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+     {0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0},
+     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
     };
 
   Level level1 = {levelMapWidth, levelMapHeight, 0,(u8*)levelMap2};
   
-  Game_Memory *gameState = (Game_Memory*)gameMemory->permanentStorage; 
+  Game_State *gameState = (Game_State*)gameMemory->permanentStorage; 
   if(!gameState->isInit)
-    {            
+    {
+      gameState->brickWidth  = 64.0f;
+      gameState->brickHeight = 21.0f;
+      gameState->ballWidth   = 10.0f;
+      gameState->ballHeight  = 10.0f;
+
       for(u32 y = 0; y < level1.height; y++)
 	{
 	  for(u32 x = 0; x < level1.width; x++)
@@ -331,19 +333,20 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		      brickColor = v3(255.0f,255.0f,0.0f);
 		    }
 		  brick->color = brickColor;
-		  brick->pos   = v2(x * brickWidth, y* brickHeight);
+		  brick->pos   = v2(x * gameState->brickWidth, y* gameState->brickHeight);
 		  brick->destroyed = false;
 		}
 	    }
-	}
-
-      level1.bricksCount = nextBrick;
+	}      
+     
+      gameState->bricksCount = nextBrick;
+      
       player.pos.x = framebuffer->width / 2.0f;
       player.pos.y = framebuffer->height - 20.0f;
       player.color = v3(255.0f,255.0f,255.0f);
       player.size  = v2(100.0f, 20.0f);
-      ball.pos = v2(355.0f,186.0f); // 475 to the center first hitten block
-      ball.velocity = v2(100.0f, 0.0f);
+      ball.pos = v2(568, 85); // 475 to the center first hitten block
+      ball.velocity = v2(0.0f, 20.0f);
 
       Loaded_sound sound = loadWAVEFile("Skillet.wav");
       
@@ -388,8 +391,10 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   
   // NOTE(shvayko): collision with player paddle
   
-  if(checkCollision(ball.pos.x, ball.pos.y, ball.pos.x + ballWidth, ball.pos.y + ballHeight,
-		    player.pos.x, player.pos.y,player.pos.x+player.size.x, player.pos.y + player.size.y))
+  if(checkCollision(ball.pos.x, ball.pos.y,
+		    ball.pos.x + gameState->ballWidth, ball.pos.y + gameState->ballHeight,
+		    player.pos.x, player.pos.y,
+		    player.pos.x+player.size.x, player.pos.y + player.size.y))
     {
       f32 centerPlayer = player.pos.x + (player.size.x / 2.0f);
       f32 distance = ball.pos.x - centerPlayer;
@@ -404,7 +409,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 
   // NOTE(shvayko): Ball movement
 
-  if((ball.pos.x + ballWidth)  > framebuffer->width)
+  if((ball.pos.x + gameState->ballWidth)  > framebuffer->width)
     {
       ball.velocity.x *= -1;
     }
@@ -424,19 +429,26 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   
   
   // NOTE(shvayko): check collision for every block
-  for(s32 brickIndex = 0; brickIndex < 72; brickIndex++)
+  for(s32 brickIndex = 0; brickIndex < gameState->bricksCount; brickIndex++)
     {
       Brick *brick = bricks+brickIndex;
       
       if(brick->destroyed == true) continue;
       
-      if(checkCollision(ball.pos.x, ball.pos.y, ball.pos.x + ballWidth, ball.pos.y + ballHeight,
-		        brick->pos.x, brick->pos.y, brick->pos.x + brickWidth-1.0f, brick->pos.y+brickHeight-1.0f))
+      if(checkCollision(ball.pos.x, ball.pos.y,
+			ball.pos.x + gameState->ballWidth, ball.pos.y + gameState->ballHeight,
+		        brick->pos.x, brick->pos.y,
+			brick->pos.x + (gameState->brickWidth-1.0f), brick->pos.y+(gameState->brickHeight-1.0f)))
 	{
-	  //NOTE(shvayko):expects the values in the range of -1 to 1 and values are returned in the range 0 to PI (3.1415927)
-	  	 	  
-	  v2 ballPosCenter  = v2(ball.pos.x + ballWidth / 2.0f, ball.pos.y + ballHeight / 2.0f);
-	  v2 brickPosCenter = v2(brick->pos.x + brickWidth / 2.0f, brick->pos.y + brickHeight / 2.0f);
+	  f32 ballPosCenterX = ball.pos.x + (gameState->ballWidth  / 2.0f);
+	  f32 ballPosCenterY = ball.pos.y + (gameState->ballHeight / 2.0f);
+	  
+	  v2 ballPosCenter  = v2(ballPosCenterX, ballPosCenterY);
+
+	  f32 brickPosCenterX = brick->pos.x + (gameState->brickWidth / 2.0f);
+	  f32 brickPosCenterY = brick->pos.y + (gameState->brickHeight / 2.0f);
+	  
+	  v2 brickPosCenter = v2(brickPosCenterX, brickPosCenterY);
 	  
 	  v2 ballToBrick = ballPosCenter - brickPosCenter;
 	  ballToBrick    = normalizeVector(ballToBrick);
@@ -445,18 +457,18 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  f64 value = dotProduct(ballToBrick, brickFacing);
 
 	  f64 angle = acos(value);
-
-	  if(1.20747 > angle) // NOTE(shvayko): bottom collision
+	  // TODO(shvayko): not correct values! Fix that tommorow
+	  if(1.31278 > angle) // NOTE(shvayko): bottom collision
 	    {
 	      ball.velocity.y *= -1.0f;
 	    }
-	  else if(1.31278 < angle < 1.80266) // NOTE(shvayko): left/right collision
+	  else if((1.24225 <= angle) && (angle <= 2.0176)) // NOTE(shvayko): left/right collision
 	    {
 	      ball.velocity.x *= -1.0f;
 	    }
-	  else if() // NOTE(shvayko): up collision
+	  else if(angle >= 1.98769) // NOTE(shvayko): up collision
 	    {
-	      ball.velocity.y *= -1.0f;
+	      ball.velocity.y *= -1.0f;	    
 	    }
 	  
 	  brick->destroyed = true;
@@ -464,15 +476,16 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	}
     }
   
-  for(s32 brickIndex = 0; brickIndex < 72; brickIndex++)
+  for(s32 brickIndex = 0; brickIndex  < gameState->bricksCount; brickIndex++)
     {
       Brick *brick = bricks+brickIndex; 
       
       if(!brick->destroyed)
 	{
-	  drawRectangle(framebuffer, brick->pos.x, brick->pos.y, brickWidth-1.0f,brickHeight-1.0f, brick->color);
+	  drawRectangle(framebuffer, brick->pos.x, brick->pos.y, gameState->brickWidth-1.0f,gameState->brickHeight-1.0f, brick->color);
 	}
     }
-  drawRectangle(framebuffer, ball.pos.x, ball.pos.y,ballWidth ,ballHeight, v3(255.0f,0.0f,0.0f));  
+  
+  drawRectangle(framebuffer, ball.pos.x, ball.pos.y,gameState->ballWidth ,gameState->ballHeight, v3(255.0f,0.0f,0.0f));  
   drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
 }

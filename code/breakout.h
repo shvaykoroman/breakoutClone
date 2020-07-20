@@ -44,7 +44,6 @@ struct Keyboard
 {
   union
   {
-    Button_Status buttons[8];
     struct
     {
       Button_Status buttonUp;
@@ -55,7 +54,9 @@ struct Keyboard
       Button_Status buttonArrowRight;
       Button_Status buttonArrowUp;
       Button_Status buttonArrowDown;
+      
     };
+    Button_Status buttons[8];
   };  
 };
 
@@ -69,6 +70,16 @@ struct Game_Memory
 {
   void *permanentStorage;
   s64   permanentStorageSize;
+
+};
+
+struct Game_State
+{
+  f32 brickWidth;
+  f32 brickHeight;
+  f32 ballWidth;
+  f32 ballHeight;
+  s32 bricksCount;
 
   bool isInit;
 };
