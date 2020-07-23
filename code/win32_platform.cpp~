@@ -4,6 +4,8 @@
 #include "breakout.cpp"
 #include "win32_platform.h"
 
+#define PI 3.14159265359f
+
 #define WINDOW_CLASS_NAME "gameClassName"
 #define WINDOW_NAME       "breakout"
 #define WINDOW_WIDTH      1280
@@ -316,6 +318,58 @@ keyboardMessagesProccessing(Keyboard *input)
     }
 }
 
+struct Sound_output
+{
+  s32 samplesPerSecond;
+  s32 secondaryBufferSize;
+  s32 hz;
+  u32 runningSampleIndex;
+  s32 wavePeriod;
+}; 
+
+internal void
+fillSoundBuffer(Sound_output *soundOutput, DWORD byteToLock,DWORD bytesToWrite)
+{
+
+
+  VOID *region1;
+  DWORD region1Size;
+	      
+  VOID *region2;
+  DWORD region2Size;
+		  
+  gSecondaryBuffer->Lock(
+			 byteToLock,
+			 bytesToWrite,
+			 &region1,&region1Size,
+			 &region2,&region2Size,
+			 DSBLOCK_FROMWRITECURSOR
+			 );
+
+  s16 *sampleOut = (s16*)region1;
+  DWORD region1SampleCount = region1Size / 4;
+  for(DWORD sampleIndex = 0; sampleIndex < region1SampleCount; sampleIndex++)
+    {
+      f32 t = 2.0f * PI * (f32)soundOutput->runningSampleIndex / (f32)soundOutput->wavePeriod;
+      f32 sineValue = sinf(t);
+      s16 sampleValue = (s16)(sineValue * 4000.0f);
+      *sampleOut++ = sampleValue;
+      *sampleOut++ = sampleValue;
+      soundOutput->runningSampleIndex++;
+    }
+		  
+  sampleOut = (s16*)region2;
+  DWORD region2SampleCount = region2Size / 4;
+  for(DWORD sampleIndex = 0; sampleIndex < region2SampleCount; sampleIndex++)
+    {
+      f32 t = 2.0f * PI * (f32)soundOutput->runningSampleIndex / (f32)soundOutput->wavePeriod;
+      f32 sineValue = sinf(t);
+      s16 sampleValue = (s16)(sineValue * 4000.0f);
+      *sampleOut++ = sampleValue;
+      *sampleOut++ = sampleValue;
+      soundOutput->runningSampleIndex++;
+    }  
+}
 
 LRESULT CALLBACK windowProc(
 			    HWND   window,
@@ -406,6 +460,14 @@ int WinMain(HINSTANCE hInstance,
       if(window)
 	{
 
+	  Sound_output soundOutput;	  
+	  soundOutput.samplesPerSecond = 44100;
+	  soundOutput.secondaryBufferSize = soundOutput.samplesPerSecond  * (sizeof(s16)*2);	  
+	  soundOutput.hz = 256;
+	  soundOutput.runningSampleIndex = 0;
+	  soundOutput.wavePeriod  = soundOutput.samplesPerSecond / soundOutput.hz;
+
+	  
 	  Game_Memory gameMemory = {};
 	  gameMemory.permanentStorageSize = MEGABYTES(64);
 	  gameMemory.permanentStorage = VirtualAlloc(0, gameMemory.permanentStorageSize, MEM_COMMIT | MEM_RESERVE,PAGE_READWRITE);
@@ -416,13 +478,11 @@ int WinMain(HINSTANCE hInstance,
 					
 	  
 	  gWindowHandle = window;
-	  s32 samplesPerSecond = 44100;
-	  s32 secondaryBufferSize = samplesPerSecond  * sizeof(s16)*2;
-	  initAudio(window, secondaryBufferSize);
-	  s32 hz = 256;
-	  u32 runningSampleIndex = 0;
-	  s32 squareWavePeriod  = samplesPerSecond / hz;
-	  s32 halfSquareWavePeriod = squareWavePeriod / 2;
+	  bool soundOsPlaying = false;
+	  initAudio(window, soundOutput.secondaryBufferSize);
+	  fillSoundBuffer(&soundOutput, 0, soundOutput.secondaryBufferSize);	  
+	  gSecondaryBuffer->Play(0, 0,DSBPLAY_LOOPING);
+	  bool soundIsPlaying = false;
 	  gGameIsRunning = true;
 	  HDC deviceContext = GetDC(window);	  
 	  LARGE_INTEGER lastTime = getClockValue();
@@ -433,7 +493,6 @@ int WinMain(HINSTANCE hInstance,
 	  while(gGameIsRunning)	    
 	    {
 	      newInput->dtForFrame = targetSecondsPerFrame;
-	      
 	      Keyboard *oldKeyboardInput = &oldInput->controller;
 	      Keyboard *newKeyboardInput = &newInput->controller;
 	      Keyboard zeroController = {};
@@ -445,58 +504,27 @@ int WinMain(HINSTANCE hInstance,
 		}
 	      
 	      keyboardMessagesProccessing(newKeyboardInput);
-#if 0	      	      
+#if 1	      	      
 	      DWORD playCursor;
 	      DWORD writeCursor;
 	      
 	      if(SUCCEEDED(gSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor)))
 		{
-		  DWORD byteToLock = runningSampleIndex*4 % secondaryBufferSize;
+		  DWORD byteToLock = (soundOutput.runningSampleIndex*4) % soundOutput.secondaryBufferSize;
 		  DWORD bytesToWrite = 0;
+
 		  if(byteToLock > playCursor)
 		    {
-		      bytesToWrite = (secondaryBufferSize - byteToLock);
+		      bytesToWrite = (soundOutput.secondaryBufferSize - byteToLock);
 		      bytesToWrite += playCursor;
 		    }
 		  else
 		    {
 		      bytesToWrite = playCursor - byteToLock;
-		    }
-	      
-		  VOID *region1;
-		  DWORD region1Size;
-	      
-		  VOID *region2;
-		  DWORD region2Size;
-		  
-		  gSecondaryBuffer->Lock(
-					 byteToLock,
-					 bytesToWrite,
-					 &region1,&region1Size,
-					 &region2,&region2Size,
-					 DSBLOCK_FROMWRITECURSOR
-					 );
-
-		  s16 *sampleOut = (s16*)region1;
-		  DWORD region1SampleCount = region1Size / 4;
-		  for(DWORD sampleIndex = 0; sampleIndex < region1SampleCount; sampleIndex++)
-		    {
-		      s16 sampleValue = ((runningSampleIndex++ / squareWavePeriod)%2) ? 8000 : -8000;
-		      *sampleOut++ = sampleValue;
-		      *sampleOut++ = sampleValue;
-		    }
-		  
-		  sampleOut = (s16*)region2;
-		  DWORD region2SampleCount = region2Size / 4;
-		  for(DWORD sampleIndex = 0; sampleIndex < region2SampleCount; sampleIndex++)
-		    {
-		      s16 sampleValue = ((runningSampleIndex++ / squareWavePeriod) %2) ? 8000 : -8000;
-		      *sampleOut++ = sampleValue;
-		      *sampleOut++ = sampleValue;
-		    }
+		    }		  
+		  fillSoundBuffer(&soundOutput, byteToLock, bytesToWrite);
 		}
-	      
-	      gSecondaryBuffer->Play(0, 0,DSBPLAY_LOOPING);
+
 #endif
 	      	      	      	      
 	      // NOTE(shvayko): gameUpdateAndRender
@@ -513,7 +541,7 @@ int WinMain(HINSTANCE hInstance,
 	      LARGE_INTEGER currentTime = getClockValue();
 	      f32 delta = getDifferenceTime(currentTime,lastTime) / (f32)performanceFreq;	      
 	      f32 secondsElapsedSoFar = delta;
-	      
+	      /*
 	      if(secondsElapsedSoFar < targetSecondsPerFrame)
 		{		  
 		  DWORD sleepMS = (DWORD)(1000.0f * (targetSecondsPerFrame - secondsElapsedSoFar));
@@ -531,7 +559,7 @@ int WinMain(HINSTANCE hInstance,
 		{
 		  
 		}
-	      	      	      	      
+	      */
 	      Window_dim dim = getWindowDim(window);
 	      stretchBitsToScreen(deviceContext, &gBackbuffer,dim.width, dim.height);	      	     
 	      

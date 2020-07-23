@@ -148,7 +148,8 @@ loadWAVEFile(char *filename)
 	  u32 channelCount   = 0;
 	  u32 sampleDataSize = 0;
 	  s16 *sampleData   = 0;
-	  for(Riff_iterator iter = parseChunkAt(waveHeader+1,(u8*)(waveHeader+1) + waveHeader->size - 4); isValid(iter); iter = nextChunk(iter))
+	  for(Riff_iterator iter = parseChunkAt(waveHeader+1,(u8*)(waveHeader+1) + waveHeader->size - 4);
+	      isValid(iter); iter = nextChunk(iter))
 	    {
 	      switch(getType(iter))
 		{
@@ -300,11 +301,11 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
     {
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-     {0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0},
-     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+     {0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0},
+     {0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0},
+     {0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0},
+     {0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0},
+     {0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0},
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -345,8 +346,8 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       player.pos.y = framebuffer->height - 20.0f;
       player.color = v3(255.0f,255.0f,255.0f);
       player.size  = v2(100.0f, 20.0f);
-      ball.pos = v2(568, 85); // 475 to the center first hitten block
-      ball.velocity = v2(0.0f, 20.0f);
+      ball.pos = v2(500, 600); // 475 to the center first hitten block
+      ball.velocity = v2(0.0f, -1.0f);
 
       Loaded_sound sound = loadWAVEFile("Skillet.wav");
       
@@ -357,22 +358,22 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   if(input->controller.buttonArrowLeft.isDown)
     {
       ball.pos.x++;
-      ball.velocity = v2(-200.0f,0.0f);
+      ball.velocity = v2(-1.0f,0.0f);
     }
   if(input->controller.buttonArrowRight.isDown)
     {
       ball.pos.x--;
-      ball.velocity = v2(200.0f,0.0f);
+      ball.velocity = v2(1.0f,0.0f);
     }
   if(input->controller.buttonArrowUp.isDown)
     {
       ball.pos.y--;
-      ball.velocity = v2(0.0f,-200.0f);
+      ball.velocity = v2(0.0f,-1.0f);
     }
   if(input->controller.buttonArrowDown.isDown)
     {
       ball.pos.y++;
-      ball.velocity = v2(0.0f,200.0f);
+      ball.velocity = v2(0.0f,1.0f);
     }
   
 #endif  
@@ -425,7 +426,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
     {
       ball.velocity.y *= -1;
     }
-  ball.pos = ball.pos + (ball.velocity * input->dtForFrame);
+  ball.pos = ball.pos + ((ball.velocity*200.0f) * input->dtForFrame);
   
   
   // NOTE(shvayko): check collision for every block
@@ -457,16 +458,15 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  f64 value = dotProduct(ballToBrick, brickFacing);
 
 	  f64 angle = acos(value);
-	  // TODO(shvayko): not correct values! Fix that tommorow
-	  if(1.31278 > angle) // NOTE(shvayko): bottom collision
+	  if(1.19421 > angle) // NOTE(shvayko): bottom collision
 	    {
 	      ball.velocity.y *= -1.0f;
 	    }
-	  else if((1.24225 <= angle) && (angle <= 2.0176)) // NOTE(shvayko): left/right collision
+	  else if((1.19421 <= angle) && (angle <= 1.98769)) // NOTE(shvayko): left/right collision
 	    {
 	      ball.velocity.x *= -1.0f;
 	    }
-	  else if(angle >= 1.98769) // NOTE(shvayko): up collision
+	  else if(angle > 1.98769) // NOTE(shvayko): up collision
 	    {
 	      ball.velocity.y *= -1.0f;	    
 	    }

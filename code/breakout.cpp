@@ -89,7 +89,7 @@ inline Riff_iterator
 nextChunk(Riff_iterator iter)
 {
   WAVE_chunk *chunk = (WAVE_chunk*)iter.at;
-  u32 size = (chunk->size+1) & -1;
+  u32 size = (chunk->size + 1) & ~1;
 
   iter.at += sizeof(WAVE_chunk) + size;
   return iter;
@@ -148,7 +148,8 @@ loadWAVEFile(char *filename)
 	  u32 channelCount   = 0;
 	  u32 sampleDataSize = 0;
 	  s16 *sampleData   = 0;
-	  for(Riff_iterator iter = parseChunkAt(waveHeader+1,(u8*)(waveHeader+1) + waveHeader->size - 4); isValid(iter); iter = nextChunk(iter))
+	  for(Riff_iterator iter = parseChunkAt(waveHeader+1,(u8*)(waveHeader+1) + waveHeader->size - 4);
+	      isValid(iter); iter = nextChunk(iter))
 	    {
 	      switch(getType(iter))
 		{
@@ -156,7 +157,7 @@ loadWAVEFile(char *filename)
 		  {
 		    WAVE_fmt *fmt = (WAVE_fmt*)getChunkData(iter);
 		    assert(fmt->wFormatTag == 1); // NOTE(shvayko): only PCM
-		    assert(fmt->nSamplesPerSec == 44100);
+		    //assert(fmt->nSamplesPerSec == 44100);
 		    channelCount = fmt->nChannels;
 		  }break;
 		case WAVE_CHUNKID_data:
@@ -345,10 +346,10 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       player.pos.y = framebuffer->height - 20.0f;
       player.color = v3(255.0f,255.0f,255.0f);
       player.size  = v2(100.0f, 20.0f);
-      ball.pos = v2(245, 146); // 475 to the center first hitten block
-      ball.velocity = v2(20.0f, 0.0f);
+      ball.pos = v2(500, 600); // 475 to the center first hitten block
+      ball.velocity = v2(0.0f, -200.0f);
 
-      Loaded_sound sound = loadWAVEFile("Skillet.wav");
+      Loaded_sound sound = loadWAVEFile("bloop_00.wav");
       
       gameState->isInit = true;
     }   
@@ -400,7 +401,6 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       f32 distance = ball.pos.x - centerPlayer;
       f32 per = distance / (player.size.x / 2.0f);
       f32 strength = 16.0f;
-      //f32 angle = dotProduct(ball.velocity, v2(player.pos.x,player.pos.y));
       v2 oldVelocity = ball.velocity;
 
       ball.velocity.x = 20.0f * per * strength; 
@@ -457,12 +457,11 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  f64 value = dotProduct(ballToBrick, brickFacing);
 
 	  f64 angle = acos(value);
-	  // TODO(shvayko): not correct values! Fix that tommorow
 	  if(1.19421 > angle) // NOTE(shvayko): bottom collision
 	    {
 	      ball.velocity.y *= -1.0f;
 	    }
-	  else if((1.19421 <= angle) && (angle <= 1.98769)) // NOTE(shvayko): left/right collision 1.24225
+	  else if((1.19421 <= angle) && (angle <= 1.98769)) // NOTE(shvayko): left/right collision
 	    {
 	      ball.velocity.x *= -1.0f;
 	    }
