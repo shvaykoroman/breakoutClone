@@ -61,12 +61,7 @@ struct WAVE_chunk
   u32 size;
 };
 #pragma pack(pop)
-struct Loaded_sound
-{
-  u32 sampleCount;
-  u32 channelCount;
-  void *samples[2];
-};
+
 
 struct Riff_iterator
 {
@@ -275,11 +270,34 @@ global Ball   ball;
 #define levelMapHeight   10
 #define levelMapWidth    20
 
+internal void
+gameSoundOutput(Game_sound_output *soundOutput,Game_Memory *gameMemory)
+{
+  Game_State *gameState = (Game_State*)gameMemory->permanentStorage;
+  
+  local_persist u32 runningSampleIndex = 0;
+  s32 hz = 255;
+  s32 wavePeriod = soundOutput->samplesPerSec / hz;
+  s16 *sampleDest = soundOutput->samples;
+  
+  for(DWORD sampleIndex = 0; sampleIndex < soundOutput->samplesToOutput; sampleIndex++)
+    {
+      // s16 sampleValue = gameState->testSound.samples[0][(gameState->testSampleIndex + sampleIndex)
+      //							% gameState->testSound.sampleCount];      
+      f32 t = 2.0f * PI * (f32)runningSampleIndex++ / (f32)wavePeriod;
+      f32 sineValue = sinf(t);
+      s16 sampleValue = (s16)(sineValue * 4000.0f);
+      *sampleDest++ = sampleValue;
+      *sampleDest++ = sampleValue;
+    }
+  gameState->testSampleIndex += soundOutput->samplesToOutput;
+}
+
 void
-gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *gameMemory)
+gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *gameMemory, Game_sound_output *soundOutput)
 {
   clearBackbuffer(framebuffer);
-
+  gameSoundOutput(soundOutput,gameMemory);
   
   u8 levelMap1[levelMapHeight][levelMapWidth] =
     {
@@ -349,7 +367,9 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       ball.pos = v2(500, 600); // 475 to the center first hitten block
       ball.velocity = v2(0.0f, -200.0f);
 
-      Loaded_sound sound = loadWAVEFile("bloop_00.wav");
+      
+      gameState->testSampleIndex = 0;
+      gameState->testSound = loadWAVEFile("bloop_00.wav");
       
       gameState->isInit = true;
     }   
@@ -475,7 +495,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	}
     }
   
-  for(s32 brickIndex = 0; brickIndex  < gameState->bricksCount; brickIndex++)
+  /*for(s32 brickIndex = 0; brickIndex  < gameState->bricksCount; brickIndex++)
     {
       Brick *brick = bricks+brickIndex; 
       
@@ -483,8 +503,9 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	{
 	  drawRectangle(framebuffer, brick->pos.x, brick->pos.y, gameState->brickWidth-1.0f,gameState->brickHeight-1.0f, brick->color);
 	}
-    }
+	}*/
   
   drawRectangle(framebuffer, ball.pos.x, ball.pos.y,gameState->ballWidth ,gameState->ballHeight, v3(255.0f,0.0f,0.0f));  
   drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
 }
+

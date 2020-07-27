@@ -89,7 +89,7 @@ inline Riff_iterator
 nextChunk(Riff_iterator iter)
 {
   WAVE_chunk *chunk = (WAVE_chunk*)iter.at;
-  u32 size = (chunk->size+1) & -1;
+  u32 size = (chunk->size + 1) & ~1;
 
   iter.at += sizeof(WAVE_chunk) + size;
   return iter;
@@ -157,7 +157,7 @@ loadWAVEFile(char *filename)
 		  {
 		    WAVE_fmt *fmt = (WAVE_fmt*)getChunkData(iter);
 		    assert(fmt->wFormatTag == 1); // NOTE(shvayko): only PCM
-		    assert(fmt->nSamplesPerSec == 44100);
+		    //assert(fmt->nSamplesPerSec == 44100);
 		    channelCount = fmt->nChannels;
 		  }break;
 		case WAVE_CHUNKID_data:
@@ -275,11 +275,29 @@ global Ball   ball;
 #define levelMapHeight   10
 #define levelMapWidth    20
 
+internal void
+gameSoundOutput(Game_sound_output *soundOutput)
+{
+  local_persist u32 runningSampleIndex = 0;
+  s32 hz = 255;
+  s32 wavePeriod = soundOutput->samplesPerSec / hz;
+  
+  s16 *sampleDest = soundOutput->samples;
+  for(DWORD sampleIndex = 0; sampleIndex < soundOutput->samplesToOutput; sampleIndex++)
+    {
+      f32 t = 2.0f * PI * (f32)runningSampleIndex++ / (f32)wavePeriod;
+      f32 sineValue = sinf(t);
+      s16 sampleValue = (s16)(sineValue * 4000.0f);
+      *sampleDest++ = sampleValue;
+      *sampleDest++ = sampleValue;
+    }
+}
+
 void
-gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *gameMemory)
+gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *gameMemory, Game_sound_output *soundOutput)
 {
   clearBackbuffer(framebuffer);
-
+  gameSoundOutput(soundOutput);
   
   u8 levelMap1[levelMapHeight][levelMapWidth] =
     {
@@ -347,9 +365,11 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       player.color = v3(255.0f,255.0f,255.0f);
       player.size  = v2(100.0f, 20.0f);
       ball.pos = v2(500, 600); // 475 to the center first hitten block
-      ball.velocity = v2(0.0f, -1.0f);
+      ball.velocity = v2(0.0f, -200.0f);
 
-      Loaded_sound sound = loadWAVEFile("Skillet.wav");
+      
+      
+      Loaded_sound sound = loadWAVEFile("bloop_00.wav");
       
       gameState->isInit = true;
     }   
@@ -358,22 +378,22 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   if(input->controller.buttonArrowLeft.isDown)
     {
       ball.pos.x++;
-      ball.velocity = v2(-1.0f,0.0f);
+      ball.velocity = v2(-200.0f,0.0f);
     }
   if(input->controller.buttonArrowRight.isDown)
     {
       ball.pos.x--;
-      ball.velocity = v2(1.0f,0.0f);
+      ball.velocity = v2(200.0f,0.0f);
     }
   if(input->controller.buttonArrowUp.isDown)
     {
       ball.pos.y--;
-      ball.velocity = v2(0.0f,-1.0f);
+      ball.velocity = v2(0.0f,-200.0f);
     }
   if(input->controller.buttonArrowDown.isDown)
     {
       ball.pos.y++;
-      ball.velocity = v2(0.0f,1.0f);
+      ball.velocity = v2(0.0f,200.0f);
     }
   
 #endif  
@@ -401,7 +421,6 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       f32 distance = ball.pos.x - centerPlayer;
       f32 per = distance / (player.size.x / 2.0f);
       f32 strength = 16.0f;
-      //f32 angle = dotProduct(ball.velocity, v2(player.pos.x,player.pos.y));
       v2 oldVelocity = ball.velocity;
 
       ball.velocity.x = 20.0f * per * strength; 
@@ -426,7 +445,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
     {
       ball.velocity.y *= -1;
     }
-  ball.pos = ball.pos + ((ball.velocity*200.0f) * input->dtForFrame);
+  ball.pos = ball.pos + (ball.velocity * input->dtForFrame);
   
   
   // NOTE(shvayko): check collision for every block
@@ -476,7 +495,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	}
     }
   
-  for(s32 brickIndex = 0; brickIndex  < gameState->bricksCount; brickIndex++)
+  /*for(s32 brickIndex = 0; brickIndex  < gameState->bricksCount; brickIndex++)
     {
       Brick *brick = bricks+brickIndex; 
       
@@ -484,8 +503,9 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	{
 	  drawRectangle(framebuffer, brick->pos.x, brick->pos.y, gameState->brickWidth-1.0f,gameState->brickHeight-1.0f, brick->color);
 	}
-    }
+	}*/
   
   drawRectangle(framebuffer, ball.pos.x, ball.pos.y,gameState->ballWidth ,gameState->ballHeight, v3(255.0f,0.0f,0.0f));  
   drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
 }
+

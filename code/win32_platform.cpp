@@ -1,11 +1,9 @@
 #include <windows.h>
+#include <stdio.h>
 #include <Dsound.h>
 #include "breakout.h"
 #include "breakout.cpp"
 #include "win32_platform.h"
-
-#define PI 3.14159265359f
-
 #define WINDOW_CLASS_NAME "gameClassName"
 #define WINDOW_NAME       "breakout"
 #define WINDOW_WIDTH      1280
@@ -34,7 +32,7 @@ readFile(char *filename)
       if(ReadFile(fileHandle,result.memory,bytesToRead, &bytesReaden,0)
 	 && bytesToRead == bytesReaden)
 	{
-	  // TODO(shvayko): logging file read success
+	  // NOTE(shvayko): file read success
 	}
       else
 	{
@@ -147,7 +145,7 @@ void initAudio(HWND window, s32 secondaryBufferSize)
 	  
 	  DSBUFFERDESC bufferDesc   = {};
 	  bufferDesc.dwSize         = sizeof(bufferDesc);
-	  bufferDesc.dwFlags        = 0;
+	  bufferDesc.dwFlags        = DSBCAPS_GETCURRENTPOSITION2;
 	  bufferDesc.dwBufferBytes  = secondaryBufferSize;
 	  bufferDesc.lpwfxFormat    = &waveFormat; 
 	  
@@ -325,10 +323,43 @@ struct Sound_output
   s32 hz;
   u32 runningSampleIndex;
   s32 wavePeriod;
+  s32 latencyCount;
 }; 
 
 internal void
-fillSoundBuffer(Sound_output *soundOutput, DWORD byteToLock,DWORD bytesToWrite)
+clearSoundBuffer(Sound_output *soundOutput)
+{
+  VOID *region1;
+  DWORD region1Size;
+	      
+  VOID *region2;
+  DWORD region2Size;
+		  
+  gSecondaryBuffer->Lock(
+			 0,
+			 soundOutput->secondaryBufferSize,
+			 &region1,&region1Size,
+			 &region2,&region2Size,
+			 0
+			 );
+
+  u8 *samplesDest = (u8*)region1;
+  for(DWORD byteIndex = 0; byteIndex < region1Size; byteIndex++)
+    {
+      *samplesDest++ = 0;
+    }
+  
+  
+  samplesDest = (u8*)region2;
+  for(DWORD byteIndex = 0; byteIndex < region2Size; byteIndex++)
+    {    
+      *samplesDest++ = 0;
+    }
+  gSecondaryBuffer->Unlock(region1, region1Size, region2,  region2Size);
+}
+
+internal void
+fillSoundBuffer(Sound_output *soundOutput, Game_sound_output *sourceBuffer,DWORD byteToLock,DWORD bytesToWrite)
 {
 
 
@@ -343,33 +374,77 @@ fillSoundBuffer(Sound_output *soundOutput, DWORD byteToLock,DWORD bytesToWrite)
 			 bytesToWrite,
 			 &region1,&region1Size,
 			 &region2,&region2Size,
-			 DSBLOCK_FROMWRITECURSOR
+			 0
 			 );
 
-  s16 *sampleOut = (s16*)region1;
+  s16 *sampleSource  = sourceBuffer->samples;
+  s16 *samplesDest = (s16*)region1;
   DWORD region1SampleCount = region1Size / 4;
   for(DWORD sampleIndex = 0; sampleIndex < region1SampleCount; sampleIndex++)
     {
-      f32 t = 2.0f * PI * (f32)soundOutput->runningSampleIndex / (f32)soundOutput->wavePeriod;
-      f32 sineValue = sinf(t);
-      s16 sampleValue = (s16)(sineValue * 4000.0f);
-      *sampleOut++ = sampleValue;
-      *sampleOut++ = sampleValue;
+      *samplesDest++ = *sampleSource++;
+      *samplesDest++ = *sampleSource++;
       soundOutput->runningSampleIndex++;
     }
-		  
-  sampleOut = (s16*)region2;
+  
+  
   DWORD region2SampleCount = region2Size / 4;
+  samplesDest = (s16*)region2;
   for(DWORD sampleIndex = 0; sampleIndex < region2SampleCount; sampleIndex++)
-    {
-      f32 t = 2.0f * PI * (f32)soundOutput->runningSampleIndex / (f32)soundOutput->wavePeriod;
-      f32 sineValue = sinf(t);
-      s16 sampleValue = (s16)(sineValue * 4000.0f);
-      *sampleOut++ = sampleValue;
-      *sampleOut++ = sampleValue;
+    {    
+      *samplesDest++ = *sampleSource++;
+      *samplesDest++ = *sampleSource++;
       soundOutput->runningSampleIndex++;
     }
   gSecondaryBuffer->Unlock(region1, region1Size, region2,  region2Size);
+}
+
+struct Debug_time_marker
+{
+  DWORD playCursor;
+  DWORD writeCursor;
+  
+};
+
+internal void
+drawDebugVerticalLine(Backbuffer *backbuffer, s32 x, s32 top, s32 bottom, u32 color)
+{
+  u8 *pixel = (u8*)backbuffer->memory + x * 4 + top*backbuffer->stride;
+  for(s32 y = top;  y < bottom; y++)
+    {
+      *(u32*)pixel = color;
+     pixel += backbuffer->stride; 
+    }
+}
+
+internal inline void
+drawSoundBufferMarker(Backbuffer *backbuffer, Sound_output *soundOutput, Debug_time_marker *markers,
+		      f32 C, s32 padX, s32 top, s32 bottom, DWORD value, u32 color)
+{
+  s32 x = padX + (s32)(C * (f32)value);
+  drawDebugVerticalLine(backbuffer, x, top, bottom, color);
+}
+
+internal void
+drawDebugSyncAudioDisplay(Backbuffer *backbuffer, Sound_output *soundOutput, Debug_time_marker *markers,
+			  s32 markerCount)
+{
+  s32 padX = 16;
+  s32 padY = 16;
+  
+  s32 top = padY;
+  s32 bottom = backbuffer->height - padY;
+
+  
+  f32 C = (f32)(backbuffer->width - 2*padX) / (f32)soundOutput->secondaryBufferSize;
+  for(s32 markerIndex  = 0; markerIndex < markerCount; markerIndex++)
+    {
+      Debug_time_marker *thisMarker = &markers[markerIndex];
+      drawSoundBufferMarker(backbuffer, soundOutput, markers,
+			    C,  padX,  top,  bottom, thisMarker->playCursor, 0xFFFFFFFF);
+      drawSoundBufferMarker(backbuffer, soundOutput, markers,
+			    C,  padX,  top,  bottom, thisMarker->writeCursor, 0x00FF00FF);
+    }
 }
 
 LRESULT CALLBACK windowProc(
@@ -419,10 +494,6 @@ int WinMain(HINSTANCE hInstance,
 	    LPSTR     lpCmdLine,
 	    int       nShowCmd)
 {
-
-  //char filenamePath[MAX_PATH];
-
-  
   
   LARGE_INTEGER performanceFreqRes;
   QueryPerformanceFrequency(&performanceFreqRes);
@@ -436,13 +507,15 @@ int WinMain(HINSTANCE hInstance,
   windowClass.hCursor       = LoadCursorA(0, IDC_ARROW);
   windowClass.lpszClassName = WINDOW_CLASS_NAME;
 
-  char *filename = __FILE__;  
-  File_content fileContent = readFile(filename);
+  /*
+    char *filename = __FILE__;  
+    File_content fileContent = readFile(filename);
 
-  if(fileContent.memory)
+    if(fileContent.memory)
     {
-      VirtualFree(fileContent.memory,0, MEM_RELEASE);
+    VirtualFree(fileContent.memory,0, MEM_RELEASE);
     }
+  */
   
   if(RegisterClassA(&windowClass))
     {
@@ -467,7 +540,9 @@ int WinMain(HINSTANCE hInstance,
 	  soundOutput.hz = 256;
 	  soundOutput.runningSampleIndex = 0;
 	  soundOutput.wavePeriod  = soundOutput.samplesPerSecond / soundOutput.hz;
-
+	  soundOutput.latencyCount = 4*(soundOutput.samplesPerSecond / 60);
+	  
+	  s16 *soundBuffer = (s16*)VirtualAlloc(0, soundOutput.secondaryBufferSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	  
 	  Game_Memory gameMemory = {};
 	  gameMemory.permanentStorageSize = MEGABYTES(64);
@@ -476,15 +551,34 @@ int WinMain(HINSTANCE hInstance,
 	    {
 	      assert(0)
 	    }
-					
+	  
+	  s32 debugTimeMarkerIndex = 0;
+	  Debug_time_marker debugTimeMarkers[15] = {0};
+	  bool soundIsValid = false;
+	  DWORD lastPlayCursor = 0;
+	  gGameIsRunning = true;
 	  
 	  gWindowHandle = window;
 	  bool soundOsPlaying = false;
 	  initAudio(window, soundOutput.secondaryBufferSize);
-	  fillSoundBuffer(&soundOutput, 0, soundOutput.secondaryBufferSize);	  
+	  clearSoundBuffer(&soundOutput);
 	  gSecondaryBuffer->Play(0, 0,DSBPLAY_LOOPING);
+	  
+#if 0
+	  while(gGameIsRunning)
+	    {
+	      DWORD playCursor;
+	      DWORD writeCursor;
+	      gSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor);
+	      
+	      char buffer[256];
+	      _snprintf_s(buffer, sizeof(buffer),"PC:%u WC:%u\n", playCursor, writeCursor);
+	      OutputDebugStringA(buffer);
+	    }
+#endif
+	  
 	  bool soundIsPlaying = false;
-	  gGameIsRunning = true;
+
 	  HDC deviceContext = GetDC(window);	  
 	  LARGE_INTEGER lastTime = getClockValue();
 	  f32 targetSecondsPerFrame = 0.01666666f;
@@ -503,45 +597,65 @@ int WinMain(HINSTANCE hInstance,
 		{
 		  newKeyboardInput->buttons[buttonIndex].isDown = oldKeyboardInput->buttons[buttonIndex].isDown;
 		}
-	      
-	      keyboardMessagesProccessing(newKeyboardInput);
-#if 1	      	      
-	      DWORD playCursor;
-	      DWORD writeCursor;
-	      
-	      if(SUCCEEDED(gSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor)))
-		{
-		  DWORD byteToLock = (soundOutput.runningSampleIndex*4) % soundOutput.secondaryBufferSize;
-		  DWORD bytesToWrite = 0;
 
-		  if(byteToLock > playCursor)
+	      DWORD targetCursor = 0;
+	      DWORD byteToLock   = 0;
+	      DWORD bytesToWrite = 0;
+	      
+	      if(soundIsValid)
+		{
+		  byteToLock = ((soundOutput.runningSampleIndex*4) % soundOutput.secondaryBufferSize);
+		  targetCursor = ((lastPlayCursor + (soundOutput.latencyCount*4))
+				  % soundOutput.secondaryBufferSize);
+		  
+		  if(byteToLock > targetCursor)
 		    {
 		      bytesToWrite = (soundOutput.secondaryBufferSize - byteToLock);
-		      bytesToWrite += playCursor;
+		      bytesToWrite += targetCursor;
 		    }
 		  else
 		    {
-		      bytesToWrite = playCursor - byteToLock;
-		    }		  
-		  fillSoundBuffer(&soundOutput, byteToLock, bytesToWrite);
-		}
-#endif
-	      	      	      	      
-	      // NOTE(shvayko): gameUpdateAndRender
-	      //
-	      //	      	      	      	      	      
+		      bytesToWrite = targetCursor - byteToLock;
+		    }
+	      }
+	      
+	      keyboardMessagesProccessing(newKeyboardInput);
+
+	      Game_sound_output gameSoundOutput = {};
+	      gameSoundOutput.samplesPerSec = 44100;
+	      gameSoundOutput.samplesToOutput = bytesToWrite / 4;
+	      gameSoundOutput.samples = soundBuffer;
+	      
 	      Game_Framebuffer gameFramebuffer;
 	      gameFramebuffer.width  = gBackbuffer.width;
 	      gameFramebuffer.height = gBackbuffer.height;
 	      gameFramebuffer.stride = gBackbuffer.stride;
 	      gameFramebuffer.memory = gBackbuffer.memory;
 	      
-	      gameUpdateAndRender(&gameFramebuffer, newInput, &gameMemory);
+	      gameUpdateAndRender(&gameFramebuffer, newInput, &gameMemory, &gameSoundOutput);	      
+#if 1	      	      	      
+	      if(soundIsValid)
+		{
+#if DEBUG
+		  DWORD playCursor;
+		  DWORD writeCursor;
+		  gSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor);
+		  char buffer[256];
+		  _snprintf_s(buffer, sizeof(buffer),"LPC:%u BTL:%u TC:%u: BTW:%u  PC:%u WC:%u\n",
+			      lastPlayCursor, byteToLock, targetCursor, bytesToWrite, playCursor, writeCursor);
+		  OutputDebugStringA(buffer);
+#endif		  
+		  
+		  fillSoundBuffer(&soundOutput, &gameSoundOutput,byteToLock, bytesToWrite);
+		}
+#endif
+	      	      	      	      
+
 	      
 	      LARGE_INTEGER currentTime = getClockValue();
 	      f32 delta = getDifferenceTime(currentTime,lastTime) / (f32)performanceFreq;	      
 	      f32 secondsElapsedSoFar = delta;
-	      /*
+	      
 	      if(secondsElapsedSoFar < targetSecondsPerFrame)
 		{		  
 		  DWORD sleepMS = (DWORD)(1000.0f * (targetSecondsPerFrame - secondsElapsedSoFar));
@@ -549,6 +663,8 @@ int WinMain(HINSTANCE hInstance,
 		    {
 		      Sleep(sleepMS);
 		    }		  
+		   currentTime = getClockValue();
+		   secondsElapsedSoFar =  getDifferenceTime(currentTime, lastTime) / (f32)performanceFreq;
 		  while(secondsElapsedSoFar < targetSecondsPerFrame)
 		    {
 		      currentTime = getClockValue();
@@ -559,10 +675,41 @@ int WinMain(HINSTANCE hInstance,
 		{
 		  
 		}
-	      */
-	      Window_dim dim = getWindowDim(window);
-	      stretchBitsToScreen(deviceContext, &gBackbuffer,dim.width, dim.height);	      	     
 	      
+	      Window_dim dim = getWindowDim(window);
+#if DEBUG
+	      drawDebugSyncAudioDisplay(&gBackbuffer,&soundOutput, debugTimeMarkers,
+					arrayCount(debugTimeMarkers));
+#endif	      
+	      stretchBitsToScreen(deviceContext, &gBackbuffer,dim.width, dim.height);
+
+	      
+	      DWORD playCursor;
+	      DWORD writeCursor;
+	      if(SUCCEEDED(gSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor)))
+		{
+		  lastPlayCursor = playCursor;
+		  if(!soundIsValid)
+		    {
+		      soundOutput.runningSampleIndex = writeCursor / 4;
+		    }
+		  soundIsValid = true;
+		}
+	      else
+		{
+		  soundIsValid = false;		  
+		}
+#if DEBUG     
+	      {			
+		Debug_time_marker *marker = &debugTimeMarkers[debugTimeMarkerIndex++];
+		if(debugTimeMarkerIndex == arrayCount(debugTimeMarkers))
+		  {
+		    debugTimeMarkerIndex = 0;
+		  }
+		marker->playCursor  = playCursor;
+		marker->writeCursor = writeCursor;
+	      }	  
+#endif	      
 	      currentTime = getClockValue();
 	      delta = getDifferenceTime(currentTime,lastTime) / (f32)performanceFreq;	      	      
 	      s32 ms    = (s32)(delta * 1000.f);
@@ -573,7 +720,7 @@ int WinMain(HINSTANCE hInstance,
 	      wsprintfA(textBuffer, "ms: %d; fps: %d\n", ms, FPS);
 	      OutputDebugStringA(textBuffer);
 #endif
-
+	      
 	      Input *temp = newInput;
 	      newInput = oldInput;
 	      oldInput = temp;

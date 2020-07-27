@@ -1,5 +1,7 @@
 #include <stdint.h>
 
+#define PI 3.14159265359f
+
 #define global static 
 #define local_persist static
 #define internal static
@@ -59,7 +61,6 @@ struct Keyboard
     Button_Status buttons[8];
   };  
 };
-
 struct Input
 {
   f32 dtForFrame;
@@ -73,6 +74,13 @@ struct Game_Memory
 
 };
 
+struct Loaded_sound
+{
+  u32 sampleCount;
+  u32 channelCount;
+  s16 *samples[2];
+};
+
 struct Game_State
 {
   f32 brickWidth;
@@ -81,6 +89,8 @@ struct Game_State
   f32 ballHeight;
   s32 bricksCount;
 
+  Loaded_sound testSound;
+  u32 testSampleIndex;
   bool isInit;
 };
 
@@ -200,5 +210,12 @@ struct File_content
   void *memory;
 };
 
+struct Game_sound_output
+{
+  s16 *samples;
+  u32 samplesToOutput;
+  u32 samplesPerSec;
+};
+
 File_content readFile(char *filename);
-void gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input,Game_Memory *gameMemory); 
+void gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input,Game_Memory *gameMemory,Game_sound_output * gameSoundBuffer); 
