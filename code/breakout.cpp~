@@ -294,10 +294,9 @@ gameSoundOutput(Game_sound_output *soundOutput,Game_Memory *gameMemory)
 }
 
 void
-gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *gameMemory, Game_sound_output *soundOutput)
+gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *gameMemory)
 {
   clearBackbuffer(framebuffer);
-  gameSoundOutput(soundOutput,gameMemory);
   
   u8 levelMap1[levelMapHeight][levelMapWidth] =
     {
@@ -357,7 +356,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		}
 	    }
 	}      
-     
+      
       gameState->bricksCount = nextBrick;
       
       player.pos.x = framebuffer->width / 2.0f;
@@ -475,7 +474,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  v2 brickFacing = v2(0.0f, 1.0f);
 
 	  f64 value = dotProduct(ballToBrick, brickFacing);
-
+	  // NOTE(shvayko): those numbers relative to the brick's center(bottom side is starting point of caclulatuin
 	  f64 angle = acos(value);
 	  if(1.19421 > angle) // NOTE(shvayko): bottom collision
 	    {
@@ -494,8 +493,9 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  break;
 	}
     }
-  
-  /*for(s32 brickIndex = 0; brickIndex  < gameState->bricksCount; brickIndex++)
+
+  // TODO(shvayko): does it make sense to collapse those two loops?
+  for(s32 brickIndex = 0; brickIndex  < gameState->bricksCount; brickIndex++)
     {
       Brick *brick = bricks+brickIndex; 
       
@@ -503,9 +503,14 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	{
 	  drawRectangle(framebuffer, brick->pos.x, brick->pos.y, gameState->brickWidth-1.0f,gameState->brickHeight-1.0f, brick->color);
 	}
-	}*/
+    }
   
   drawRectangle(framebuffer, ball.pos.x, ball.pos.y,gameState->ballWidth ,gameState->ballHeight, v3(255.0f,0.0f,0.0f));  
   drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
 }
 
+void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBuffer)
+{
+  Game_State *gameState = (Game_State*)gameMemory->permanentStorage;
+  gameSoundOutput(gameSoundBuffer,gameMemory);
+}

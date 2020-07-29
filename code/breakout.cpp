@@ -282,11 +282,11 @@ gameSoundOutput(Game_sound_output *soundOutput,Game_Memory *gameMemory)
   
   for(DWORD sampleIndex = 0; sampleIndex < soundOutput->samplesToOutput; sampleIndex++)
     {
-      // s16 sampleValue = gameState->testSound.samples[0][(gameState->testSampleIndex + sampleIndex)
-      //							% gameState->testSound.sampleCount];      
-      f32 t = 2.0f * PI * (f32)runningSampleIndex++ / (f32)wavePeriod;
-      f32 sineValue = sinf(t);
-      s16 sampleValue = (s16)(sineValue * 4000.0f);
+      //s16 sampleValue = gameState->testSound.samples[0][(gameState->testSampleIndex + sampleIndex)
+      //						 % gameState->testSound.sampleCount];      
+       f32 t = 2.0f * PI * (f32)runningSampleIndex++ / (f32)wavePeriod;
+       f32 sineValue = sinf(t);
+       s16 sampleValue = (s16)(sineValue * 4000.0f);
       *sampleDest++ = sampleValue;
       *sampleDest++ = sampleValue;
     }

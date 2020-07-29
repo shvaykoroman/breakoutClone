@@ -14,7 +14,7 @@ global bool gGameIsRunning;
 global Backbuffer gBackbuffer;
 global LPDIRECTSOUNDBUFFER gSecondaryBuffer;
 global HWND gWindowHandle;
-
+global bool globalPause;
 File_content
 readFile(char *filename)
 {
@@ -104,7 +104,7 @@ void initAudio(HWND window, s32 secondaryBufferSize)
       WAVEFORMATEX waveFormat    = {};
       waveFormat.wFormatTag      = WAVE_FORMAT_PCM;
       waveFormat.nChannels       = 2;
-      waveFormat.nSamplesPerSec  = 44100;
+      waveFormat.nSamplesPerSec  = 48000;
       waveFormat.wBitsPerSample  = 16;
       waveFormat.nBlockAlign     = (WORD)(waveFormat.nChannels * waveFormat.wBitsPerSample / 8);
       waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
@@ -300,6 +300,12 @@ keyboardMessagesProccessing(Keyboard *input)
 		    {
 		      input->buttonArrowUp.isDown = isDown;
 		    }break;
+#if DEBUG
+		  case 'P':
+		    {
+		      globalPause = !globalPause;
+		    }break;
+#endif
 		  default:
 		    {
 		  
@@ -442,21 +448,28 @@ drawDebugSyncAudioDisplay(Backbuffer *backbuffer, Sound_output *soundOutput, Deb
       Debug_time_marker *thisMarker = &markers[markerIndex];
       if(markerIndex == currentMarkerIndex)
 	{
+	  s32 firstTop = top;
 	  top += lineHeight+padY;
 	  bottom += lineHeight+padY;
 
 	  drawSoundBufferMarker(backbuffer, soundOutput, markers,
 				C,  padX,  top,  bottom, thisMarker->outputPlayCursor, playColor);
 	  drawSoundBufferMarker(backbuffer, soundOutput, markers,
-				C,  padX,  top,  bottom, thisMarker->outputWriteCursor, writeColor);
+				C,  padX,  top,  bottom, thisMarker->outputWriteCursor, writeColor);	  
 
 	  top += lineHeight+padY;
 	  bottom += lineHeight+padY;
 	  
 	  drawSoundBufferMarker(backbuffer, soundOutput, markers,
-				C,  padX,  top,  bottom, thisMarker->outputLocation, writeColor);
+				C,  padX,  top,  bottom, thisMarker->outputLocation, playColor);
 	  drawSoundBufferMarker(backbuffer, soundOutput, markers,
-				C,  padX,  top,  bottom, thisMarker->outputByteCount + thisMarker->outputLocation, writeColor);
+	  			C,  padX,  top,  bottom, thisMarker->outputByteCount + thisMarker->outputLocation, writeColor);
+	  
+	  top += lineHeight+padY;
+	  bottom += lineHeight+padY;
+
+	  drawSoundBufferMarker(backbuffer, soundOutput, markers,
+				C,  padX,  firstTop,  bottom, thisMarker->expectedFlipPlayCursor, 0xFFFFFF00);
 	}
       
       drawSoundBufferMarker(backbuffer, soundOutput, markers,
@@ -565,23 +578,23 @@ int WinMain(HINSTANCE hInstance,
 	  Debug_time_marker debugTimeMarkers[15] = {0};
 	  bool soundIsValid = false;
 	  gGameIsRunning = true;
-	  
 	  gWindowHandle = window;
 
-
+	  s32 gameUpdateHZ = 60;
+	  f32 targetSecondsPerFrame = 1.0f/(f32)gameUpdateHZ;
 	  
 	  Sound_output soundOutput;	  
-	  soundOutput.samplesPerSecond = 44100;
+	  soundOutput.samplesPerSecond = 48000;
 	  soundOutput.secondaryBufferSize = soundOutput.samplesPerSecond  * (sizeof(s16)*2);	  
 	  soundOutput.hz = 256;
 	  soundOutput.runningSampleIndex = 0;
 	  soundOutput.wavePeriod  = soundOutput.samplesPerSecond / soundOutput.hz;
-	  soundOutput.latencyCount = 4*(soundOutput.samplesPerSecond / 60);
+	  soundOutput.latencyCount = 4*(soundOutput.samplesPerSecond / gameUpdateHZ);
 	  
 	  DWORD audioLatencyBytes   = 0;
-	  f32 audioLatencySeconds  = 0;
-	 
-	  soundOutput.safetyBytes = (soundOutput.samplesPerSecond * 4) / 3;
+	  f32 audioLatencySeconds  = 0;	 
+	  
+	  soundOutput.safetyBytes = (soundOutput.samplesPerSecond * 4 / gameUpdateHZ) * 1.8f;
 	  s16 *soundBuffer = (s16*)VirtualAlloc(0, soundOutput.secondaryBufferSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	  bool soundOsPlaying = false;
 	  initAudio(window, soundOutput.secondaryBufferSize);
@@ -605,7 +618,8 @@ int WinMain(HINSTANCE hInstance,
 
 	  HDC deviceContext = GetDC(window);	  
 	  LARGE_INTEGER lastTime = getClockValue();
-	  f32 targetSecondsPerFrame = 0.01666666f;
+	  LARGE_INTEGER flipWallClock = getClockValue();	  
+
 	  Input input[2] = {};
 	  Input *newInput = &input[0];
 	  Input *oldInput = &input[1];	  
@@ -623,153 +637,166 @@ int WinMain(HINSTANCE hInstance,
 		}
 	      
 	      keyboardMessagesProccessing(newKeyboardInput);
-	      
-	      Game_Framebuffer gameFramebuffer;
-	      gameFramebuffer.width  = gBackbuffer.width;
-	      gameFramebuffer.height = gBackbuffer.height;
-	      gameFramebuffer.stride = gBackbuffer.stride;
-	      gameFramebuffer.memory = gBackbuffer.memory;
-	      
-	      gameUpdateAndRender(&gameFramebuffer, newInput, &gameMemory);
 
-	      Debug_time_marker *marker = &debugTimeMarkers[debugTimeMarkerIndex];
-	      DWORD playCursor  = 0;
-	      DWORD writeCursor = 0;
-	      if(SUCCEEDED(gSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor)))
+	      if(!globalPause)
 		{
-		  if(!soundIsValid)
-		    {
-		      soundOutput.runningSampleIndex = writeCursor / 4;
-		      soundIsValid = true;			      
-		    }		
-		  
-		  DWORD byteToLock = ((soundOutput.runningSampleIndex*4) % soundOutput.secondaryBufferSize);
+		  Game_Framebuffer gameFramebuffer;
+		  gameFramebuffer.width  = gBackbuffer.width;
+		  gameFramebuffer.height = gBackbuffer.height;
+		  gameFramebuffer.stride = gBackbuffer.stride;
+		  gameFramebuffer.memory = gBackbuffer.memory;
+	      
+		  gameUpdateAndRender(&gameFramebuffer, newInput, &gameMemory);
 
-		  DWORD expectedSoundBytesPerFrame = (soundOutput.samplesPerSecond  * 4) / 60;
-		  DWORD expectedFrameBoundaryByte = playCursor + expectedSoundBytesPerFrame;
-		  
-		  DWORD safeWriteCursor = writeCursor;
-		  if(safeWriteCursor < playCursor)
-		    {
-		      safeWriteCursor += soundOutput.secondaryBufferSize;
-		    }
-		  assert(safeWriteCursor >= playCursor);
-		  safeWriteCursor += soundOutput.safetyBytes;
-		  
-		  bool audioCardIsLowLatency = safeWriteCursor < expectedFrameBoundaryByte;
-		  DWORD targetCursor = 0;
-		  if(audioCardIsLowLatency)
-		    {
-		      targetCursor = (expectedFrameBoundaryByte + expectedSoundBytesPerFrame);
-		    }
-		  else
-		    {
-		      targetCursor = (writeCursor + expectedSoundBytesPerFrame + soundOutput.safetyBytes);
-		    }
-		  targetCursor = targetCursor % soundOutput.secondaryBufferSize;
-		  DWORD bytesToWrite = 0;	      
-		  if(byteToLock > targetCursor)
-		    {
-		      bytesToWrite = (soundOutput.secondaryBufferSize - byteToLock);
-		      bytesToWrite += targetCursor;
-		    }
-		  else
-		    {
-		      bytesToWrite = targetCursor - byteToLock;
-		    }
+		  Debug_time_marker *marker = &debugTimeMarkers[debugTimeMarkerIndex];
 
+		  LARGE_INTEGER audioWallClock = getClockValue();		 
+		  f32 fromBeginToAudioSeconds = getDifferenceTime(audioWallClock,flipWallClock)
+		    / (f32)performanceFreq;
 		  
-		  Game_sound_output gameSoundOutput = {};
-		  gameSoundOutput.samplesPerSec = 44100;
-		  gameSoundOutput.samplesToOutput = bytesToWrite / 4;
-		  gameSoundOutput.samples = soundBuffer;
-		  gameGetSoundSamples(&gameMemory, &gameSoundOutput);
+		  DWORD playCursor  = 0;
+		  DWORD writeCursor = 0;
+		  if(SUCCEEDED(gSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor)))
+		    {
+		      if(!soundIsValid)
+			{
+			  soundOutput.runningSampleIndex = writeCursor / 4;
+			  soundIsValid = true;			      
+			}		
+		      
+		      DWORD byteToLock = ((soundOutput.runningSampleIndex*4) % soundOutput.secondaryBufferSize);
+		      
+		      DWORD expectedSoundBytesPerFrame = (soundOutput.samplesPerSecond  * 4) / gameUpdateHZ;
+		      f32   secondsLeftUntilFlip = targetSecondsPerFrame - fromBeginToAudioSeconds;
+		      DWORD expectedBytesUntilFlip = (DWORD)((secondsLeftUntilFlip/targetSecondsPerFrame)*
+							     (f32)expectedSoundBytesPerFrame);
+		      
+		      DWORD expectedFrameBoundaryByte = playCursor + expectedBytesUntilFlip;
+		      DWORD safeWriteCursor = writeCursor;
+		      if(safeWriteCursor < playCursor)
+			{
+			  safeWriteCursor += soundOutput.secondaryBufferSize;
+			}
+		      assert(safeWriteCursor >= playCursor);
+		      safeWriteCursor += soundOutput.safetyBytes;
+		      
+		      bool audioCardIsLowLatency = (safeWriteCursor < expectedFrameBoundaryByte);
+		      DWORD targetCursor = 0;
+		      if(audioCardIsLowLatency)
+			{
+			  targetCursor = (expectedFrameBoundaryByte + expectedSoundBytesPerFrame);
+			}
+		      else
+			{
+			  targetCursor = (writeCursor + expectedSoundBytesPerFrame + soundOutput.safetyBytes);
+			}
+		      targetCursor = targetCursor % soundOutput.secondaryBufferSize;
+		      DWORD bytesToWrite = 0;	      
+		      if(byteToLock > targetCursor)
+			{
+			  bytesToWrite = (soundOutput.secondaryBufferSize - byteToLock);
+			  bytesToWrite += targetCursor;
+			}
+		      else
+			{
+			  bytesToWrite = targetCursor - byteToLock;
+			}
+		      
+		      
+		      Game_sound_output gameSoundOutput = {};
+		      gameSoundOutput.samplesPerSec = soundOutput.samplesPerSecond;
+		      gameSoundOutput.samplesToOutput = bytesToWrite / 4;
+		      gameSoundOutput.samples = soundBuffer;
+		      gameGetSoundSamples(&gameMemory, &gameSoundOutput);
 #if 1	      	      	      
 #if DEBUG
-		  marker->outputPlayCursor  = playCursor;
-		  marker->outputWriteCursor = writeCursor;
-		  marker->outputLocation    = byteToLock;
-		  marker->outputByteCount   = bytesToWrite;
+		      marker->expectedFlipPlayCursor  = expectedFrameBoundaryByte;
+		      marker->outputPlayCursor  = playCursor;
+		      marker->outputWriteCursor = writeCursor;
+		      marker->outputLocation    = byteToLock;
+		      marker->outputByteCount   = bytesToWrite;
 		  
-		  DWORD unwrappedWriteCursor = writeCursor;
-		  if(unwrappedWriteCursor < playCursor)
-		    {
-		      unwrappedWriteCursor += soundOutput.secondaryBufferSize;
+		      DWORD unwrappedWriteCursor = writeCursor;
+		      if(unwrappedWriteCursor < playCursor)
+			{
+			  unwrappedWriteCursor += soundOutput.secondaryBufferSize;
+			}
+		      audioLatencyBytes = writeCursor - playCursor;
+		      audioLatencySeconds  = ((f32)audioLatencyBytes / 4.0f) / (f32)soundOutput.samplesPerSecond;
+		  
+		      char buffer[256];
+		      _snprintf_s(buffer, sizeof(buffer),"BTL:%u TC:%u: BTW:%u  PC:%u WC:%u DELTA:%u (%fs)\n",
+				  byteToLock, targetCursor, bytesToWrite, playCursor,
+				  writeCursor, audioLatencyBytes,audioLatencySeconds);
+		      OutputDebugStringA(buffer);
+		      fillSoundBuffer(&soundOutput, &gameSoundOutput, byteToLock, bytesToWrite);
+
 		    }
-		  audioLatencyBytes = writeCursor - playCursor;
-		  audioLatencySeconds  = ((f32)audioLatencyBytes / 4.0f) / (f32)soundOutput.samplesPerSecond;
-		  
-		  char buffer[256];
-		  _snprintf_s(buffer, sizeof(buffer),"BTL:%u TC:%u: BTW:%u  PC:%u WC:%u DELTA:%u (%fs)\n",
-			      byteToLock, targetCursor, bytesToWrite, playCursor,
-			      writeCursor, audioLatencyBytes,audioLatencySeconds);
-		  OutputDebugStringA(buffer);
-		  fillSoundBuffer(&soundOutput, &gameSoundOutput, byteToLock, bytesToWrite);
-		}
-	      else
-		{
-		  soundIsValid = false;
-		}
+		  else
+		    {
+		      soundIsValid = false;
+		    }
 #endif		  		 
 #endif	      	      	      	      	      
-	      LARGE_INTEGER currentTime = getClockValue();
-	      f32 delta = getDifferenceTime(currentTime,lastTime) / (f32)performanceFreq;	      
-	      f32 secondsElapsedSoFar = delta;
-	      
-	      if(secondsElapsedSoFar < targetSecondsPerFrame)
-		{		  
-		  DWORD sleepMS = (DWORD)(1000.0f * (targetSecondsPerFrame - secondsElapsedSoFar));
-		  if(sleepMS > 0)
-		    {
-		      Sleep(sleepMS);
-		    }		  
-		  currentTime = getClockValue();
-		  secondsElapsedSoFar =  getDifferenceTime(currentTime, lastTime) / (f32)performanceFreq;
-		  while(secondsElapsedSoFar < targetSecondsPerFrame)
-		    {
+		  LARGE_INTEGER currentTime = getClockValue();
+		  f32 delta = getDifferenceTime(currentTime,lastTime) / (f32)performanceFreq;	      
+		  f32 secondsElapsedSoFar = delta;
+		  
+		  if(secondsElapsedSoFar < targetSecondsPerFrame)
+		    {		  
+		      DWORD sleepMS = (DWORD)(1000.0f * (targetSecondsPerFrame - secondsElapsedSoFar));		      /*
+															if(sleepMS > 0)
+															{
+															Sleep(sleepMS);
+															}		  		      */
 		      currentTime = getClockValue();
 		      secondsElapsedSoFar =  getDifferenceTime(currentTime, lastTime) / (f32)performanceFreq;
+		      while(secondsElapsedSoFar < targetSecondsPerFrame)
+			{
+			  currentTime = getClockValue();
+			  secondsElapsedSoFar =  getDifferenceTime(currentTime, lastTime) / (f32)performanceFreq;
+			}
 		    }
-		}
-	      else
-		{
+		  else
+		    {
 		  
-		}
-	      currentTime = getClockValue();
-	      Window_dim dim = getWindowDim(window);
+		    }
+		  currentTime = getClockValue();
+		  delta = getDifferenceTime(currentTime,lastTime) / (f32)performanceFreq;	      	      
+		  Window_dim dim = getWindowDim(window);
 #if DEBUG
-	      drawDebugSyncAudioDisplay(&gBackbuffer,&soundOutput, debugTimeMarkers, debugTimeMarkerIndex - 1,
-					arrayCount(debugTimeMarkers));
+		  drawDebugSyncAudioDisplay(&gBackbuffer,&soundOutput, debugTimeMarkers, debugTimeMarkerIndex - 1,
+					    arrayCount(debugTimeMarkers));
 #endif	      
-	      stretchBitsToScreen(deviceContext, &gBackbuffer,dim.width, dim.height);
-	      
-
-#if DEBUG     
-	      
-	      if(SUCCEEDED(gSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor)))
-		{		  
-		  marker->flipPlayCursor  = playCursor;
-		  marker->flipWriteCursor = writeCursor;
-		}
-	      	  
+		  stretchBitsToScreen(deviceContext, &gBackbuffer,dim.width, dim.height);
+		  
+		  flipWallClock = getClockValue();
+		  
+#if DEBUG     	      
+		  if(SUCCEEDED(gSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor)))
+		    {		  
+		      marker->flipPlayCursor  = playCursor;
+		      marker->flipWriteCursor = writeCursor;
+		    }
+		  
 #endif	      
-	      delta = getDifferenceTime(currentTime,lastTime) / (f32)performanceFreq;	      	      
-	      s32 ms    = (s32)(delta * 1000.f);
-	      s32 FPS   = (s32)(1.f/delta);
-	      lastTime = currentTime;
+		  s32 ms    = (s32)(delta * 1000.f);
+		  s32 FPS   = (s32)(1.f/delta);
+		  lastTime = currentTime;
 #if 1
-	      char textBuffer[255];
-	      wsprintfA(textBuffer, "ms: %d; fps: %d\n", ms, FPS);
-	      OutputDebugStringA(textBuffer);
+		  char textBuffer[255];
+		  wsprintfA(textBuffer, "ms: %d; fps: %d\n", ms, FPS);
+		  OutputDebugStringA(textBuffer);
 #endif
-	      debugTimeMarkerIndex++;
-	      if(debugTimeMarkerIndex == arrayCount(debugTimeMarkers))
-		{
-		  debugTimeMarkerIndex = 0;
+		  debugTimeMarkerIndex++;
+		  if(debugTimeMarkerIndex == arrayCount(debugTimeMarkers))
+		    {
+		      debugTimeMarkerIndex = 0;
+		    }
+		  Input *temp = newInput;
+		  newInput = oldInput;
+		  oldInput = temp;
 		}
-	      Input *temp = newInput;
-	      newInput = oldInput;
-	      oldInput = temp;	      
 	    }
 	}
       else

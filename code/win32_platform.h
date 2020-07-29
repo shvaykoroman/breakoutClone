@@ -34,7 +34,7 @@ struct Debug_time_marker
   DWORD outputWriteCursor;
   DWORD outputLocation;
   DWORD outputByteCount;
-  
+  DWORD expectedFlipPlayCursor;
   DWORD flipPlayCursor;
   DWORD flipWriteCursor;   
 };
