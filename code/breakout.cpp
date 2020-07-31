@@ -289,11 +289,44 @@ loadLevel(Game_State *gameState, u8 *level)
       
 } 
 
+struct Memory_arena
+{
+  u8 *base;
+  size_t size;
+  size_t used;
+};
+
+internal void
+initArena(Memory_arena *arena, size_t size, u8 *base)
+{
+  arena->base = base;
+  arena->used = 0;
+  arena->size = size;
+}
+
+#define pushStruct(arena, type) _pushSize(arena,sizeof(type))
+#define pushArray(arena, type, num) _pushSize(arena, sizeof(type)*num)
+
+internal void*
+_pushSize(Memory_arena *arena, size_t size)
+{
+  void *result = (arena->base + arena->used);
+  arena->used += size;
+  return result;
+}
+
+struct foo
+{
+  s32 bar;
+  s32 foobar;
+  s32 lol;
+};
+
 void
 gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *gameMemory)
 {
   clearBackbuffer(framebuffer);
-    
+  
   u8 levelMap2[MAX_LEVEL_HEIGHT][MAX_LEVEL_WIDTH] =
     {
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -330,13 +363,22 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   Game_State *gameState = (Game_State*)gameMemory->permanentStorage; 
   if(!gameState->isInit)
     {
+
+      Memory_arena levelArena;
+      initArena(&levelArena, gameMemory->permanentStorageSize - sizeof(*gameState),
+		(u8*)gameMemory->permanentStorage + sizeof(*gameState));      
+      
+      foo *Foo = (foo*)pushStruct(&levelArena, foo);
+      Foo->bar = 6;
+      Foo->foobar = 10;
+      
       gameState->brickWidth  = 64.0f;
       gameState->brickHeight = 21.0f;
       gameState->ballWidth   = 10.0f;
       gameState->ballHeight  = 10.0f;      
       gameState->currentLevel.map = firstMap;
       
-      loadLevel(gameState, gameState->currentLevel.map);
+      loadLevel(gameState, gameState->currentLevel.map);      
       
       player.pos.x = framebuffer->width / 2.0f;
       player.pos.y = framebuffer->height - 20.0f;
@@ -396,6 +438,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		    player.pos.x, player.pos.y,
 		    player.pos.x+player.size.x, player.pos.y + player.size.y))
     {
+      // TODO(shvayko): may be use here vector math?
       f32 centerPlayer = player.pos.x + (player.size.x / 2.0f);
       f32 distance = ball.pos.x - centerPlayer;
       f32 per = distance / (player.size.x / 2.0f);
@@ -514,7 +557,7 @@ void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBu
   s32 hz = 255;
   s32 wavePeriod = gameSoundBuffer->samplesPerSec / hz;
   s16 *sampleDest = gameSoundBuffer->samples;
-  
+
   for(DWORD sampleIndex = 0; sampleIndex < gameSoundBuffer->samplesToOutput; sampleIndex++)
     {      
       s16 sampleValue = gameState->testSound.samples[0][(gameState->testSampleIndex + sampleIndex)
@@ -524,7 +567,6 @@ void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBu
     }
   gameState->testSampleIndex += gameSoundBuffer->samplesToOutput;
 
-  
-  
+    
   //gameSoundOutput(gameSoundBuffer,gameMemory);
 }
