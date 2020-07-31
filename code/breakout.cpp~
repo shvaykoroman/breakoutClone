@@ -2,14 +2,6 @@
 
 #define DEBUG 1
 
-struct Brick
-{
-  v3 color;
-  v2 pos;   
-
-  bool destroyed;
-};
-
 struct Ball
 {
   v2 pos;
@@ -193,6 +185,8 @@ loadWAVEFile(char *filename)
   return result;
 }
 
+
+
 bool
 checkCollision(f32 minx1, f32 miny1, f32 maxx1, f32 maxy1,
 	       f32 minx2, f32 miny2, f32 maxx2, f32 maxy2)
@@ -252,23 +246,14 @@ drawRectangle(Game_Framebuffer *framebuffer,f32 realX, f32 realY,f32 width , f32
     }  
 }
 
-struct Level
-{
-  u32 width;
-  u32 height;
-  s32 bricksCount;
-  
-  u8 *map;  
-};
 
 // TODO(shvayko)DELETE THIS FROM GLOBAL SCOPE! 
-Brick bricks[128];
 s32 nextBrick = 0;
 global Player player;
 global Ball   ball;
 
-#define levelMapHeight   10
-#define levelMapWidth    20
+#define MAX_LEVEL_HEIGHT   10
+#define MAX_LEVEL_WIDTH    20
 
 internal void
 gameSoundOutput(Game_sound_output *soundOutput,Game_Memory *gameMemory)
@@ -282,39 +267,52 @@ gameSoundOutput(Game_sound_output *soundOutput,Game_Memory *gameMemory)
   
   for(DWORD sampleIndex = 0; sampleIndex < soundOutput->samplesToOutput; sampleIndex++)
     {
-      // s16 sampleValue = gameState->testSound.samples[0][(gameState->testSampleIndex + sampleIndex)
-      //							% gameState->testSound.sampleCount];      
-      f32 t = 2.0f * PI * (f32)runningSampleIndex++ / (f32)wavePeriod;
-      f32 sineValue = sinf(t);
-      s16 sampleValue = (s16)(sineValue * 4000.0f);
+      s16 sampleValue = gameState->testSound.samples[0][(gameState->testSampleIndex + sampleIndex)
+      						 % gameState->testSound.sampleCount];      
+       f32 t = 2.0f * PI * (f32)runningSampleIndex++ / (f32)wavePeriod;
+       f32 sineValue = sinf(t);
+       // s16 sampleValue = (s16)(sineValue * 4000.0f);
       *sampleDest++ = sampleValue;
       *sampleDest++ = sampleValue;
     }
   gameState->testSampleIndex += soundOutput->samplesToOutput;
 }
 
+internal void
+loadLevel(Game_State *gameState, u8 *level)
+{
+  nextBrick = 0;
+  gameState->currentLevel.map = level;
+            
+  for(u32 y = 0; y < MAX_LEVEL_HEIGHT; y++)
+    {
+      for(u32 x = 0; x < MAX_LEVEL_WIDTH; x++)
+	{
+	  if(gameState->currentLevel.map[y*MAX_LEVEL_WIDTH + x] != 0)
+	    {
+	      Brick *brick = gameState->currentLevel.bricks + nextBrick++;
+	      assert(nextBrick < MAX_LEVEL_HEIGHT * MAX_LEVEL_WIDTH);
+	      v3 brickColor = v3(255.0f,0.0f,255.0f);
+	      if(gameState->currentLevel.map[y*MAX_LEVEL_WIDTH + x] == 1)
+		{
+		  brickColor = v3(255.0f,255.0f,0.0f);
+		}
+	      brick->color = brickColor;
+	      brick->pos   = v2(x * gameState->brickWidth, y* gameState->brickHeight);
+	      brick->destroyed = false;
+	    }
+	}
+    }
+  gameState->currentLevel.bricksCount = nextBrick;
+      
+} 
+
 void
 gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *gameMemory)
 {
   clearBackbuffer(framebuffer);
-  
-  u8 levelMap1[levelMapHeight][levelMapWidth] =
-    {
-     {2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2},
-     {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-     {1,1,2,1,1,2,1,1,1,2,1,1,2,1,1,1,2,1,1,1},
-     {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-     {1,1,1,2,1,1,1,1,2,1,1,1,1,2,1,1,2,1,1,1},
-     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-     {0,0,0,0,0,1,0,0,0,2,0,0,1,0,0,0,0,0,0,0},
-     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-    }; 
-
-  Level level = {levelMapWidth, levelMapHeight, 0,(u8*)levelMap1};
-
-  u8 levelMap2[levelMapHeight][levelMapWidth] =
+    
+  u8 levelMap2[MAX_LEVEL_HEIGHT][MAX_LEVEL_WIDTH] =
     {
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -328,7 +326,24 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
     };
 
-  Level level1 = {levelMapWidth, levelMapHeight, 0,(u8*)levelMap2};
+  u8 *firstMap = (u8*)levelMap2;
+
+    u8 levelMap1[MAX_LEVEL_HEIGHT][MAX_LEVEL_WIDTH] =
+    {
+     {2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2},
+     {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+     {1,1,2,1,1,2,1,1,1,2,1,1,2,1,1,1,2,1,1,1},
+     {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+     {1,1,1,2,1,1,1,1,2,1,1,1,1,2,1,1,2,1,1,1},
+     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+     {0,0,0,0,0,1,0,0,0,2,0,0,1,0,0,0,0,0,0,0},
+     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+    }; 
+
+  u8 *secondMap = (u8*)levelMap1;
+  
   
   Game_State *gameState = (Game_State*)gameMemory->permanentStorage; 
   if(!gameState->isInit)
@@ -336,36 +351,22 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       gameState->brickWidth  = 64.0f;
       gameState->brickHeight = 21.0f;
       gameState->ballWidth   = 10.0f;
-      gameState->ballHeight  = 10.0f;
-
-      for(u32 y = 0; y < level1.height; y++)
-	{
-	  for(u32 x = 0; x < level1.width; x++)
-	    {
-	      if(level1.map[y*level1.width + x] != 0)
-		{
-		  Brick *brick = bricks + nextBrick++;
-		  v3 brickColor = v3(255.0f,0.0f,255.0f);
-		  if(level1.map[y*level.width + x] == 1)
-		    {
-		      brickColor = v3(255.0f,255.0f,0.0f);
-		    }
-		  brick->color = brickColor;
-		  brick->pos   = v2(x * gameState->brickWidth, y* gameState->brickHeight);
-		  brick->destroyed = false;
-		}
-	    }
-	}      
+      gameState->ballHeight  = 10.0f;      
+      gameState->currentLevel.map = firstMap;
       
-      gameState->bricksCount = nextBrick;
+      loadLevel(gameState, gameState->currentLevel.map);
+
+      gameState->currentLevel.bricksCount = nextBrick;
+      gameState->currentLevel.map = firstMap;
       
       player.pos.x = framebuffer->width / 2.0f;
       player.pos.y = framebuffer->height - 20.0f;
       player.color = v3(255.0f,255.0f,255.0f);
       player.size  = v2(100.0f, 20.0f);
-      ball.pos = v2(500, 600); // 475 to the center first hitten block
+      f32 ballStartingPositionX = 500;
+      f32 ballStartingPositionY = 600;
+      ball.pos = v2(ballStartingPositionX, ballStartingPositionY);
       ball.velocity = v2(0.0f, -200.0f);
-
       
       gameState->testSampleIndex = 0;
       gameState->testSound = loadWAVEFile("bloop_00.wav");
@@ -448,9 +449,10 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   
   
   // NOTE(shvayko): check collision for every block
-  for(s32 brickIndex = 0; brickIndex < gameState->bricksCount; brickIndex++)
+  for(s32 brickIndex = 0; brickIndex < gameState->currentLevel.bricksCount; brickIndex++)
     {
-      Brick *brick = bricks+brickIndex;
+      assert(nextBrick < MAX_LEVEL_HEIGHT * MAX_LEVEL_WIDTH);
+      Brick *brick = gameState->currentLevel.bricks+brickIndex;
       
       if(brick->destroyed == true) continue;
       
@@ -472,7 +474,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  v2 ballToBrick = ballPosCenter - brickPosCenter;
 	  ballToBrick    = normalizeVector(ballToBrick);
 	  v2 brickFacing = v2(0.0f, 1.0f);
-
+	  
 	  f64 value = dotProduct(ballToBrick, brickFacing);
 	  // NOTE(shvayko): those numbers relative to the brick's center(bottom side is starting point of caclulatuin
 	  f64 angle = acos(value);
@@ -494,16 +496,31 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	}
     }
 
-  // TODO(shvayko): does it make sense to collapse those two loops?
-  for(s32 brickIndex = 0; brickIndex  < gameState->bricksCount; brickIndex++)
+  // NOTE(shvayko): rendering all active blocks
+  for(s32 brickIndex = 0; brickIndex  < gameState->currentLevel.bricksCount; brickIndex++)
     {
-      Brick *brick = bricks+brickIndex; 
+      Brick *brick = gameState->currentLevel.bricks+brickIndex; 
       
       if(!brick->destroyed)
 	{
-	  drawRectangle(framebuffer, brick->pos.x, brick->pos.y, gameState->brickWidth-1.0f,gameState->brickHeight-1.0f, brick->color);
+	  drawRectangle(framebuffer, brick->pos.x, brick->pos.y,
+			gameState->brickWidth-1.0f,gameState->brickHeight-1.0f,
+			brick->color);
 	}
     }
+
+  // NOTE(shvayko): test load level
+#if DEBUG
+  if(input->controller.buttonArrowLeft.isDown)
+    {
+      loadLevel(gameState, firstMap);
+    }
+  
+  if(input->controller.buttonArrowRight.isDown)
+    {
+      loadLevel(gameState, secondMap);
+    }
+#endif
   
   drawRectangle(framebuffer, ball.pos.x, ball.pos.y,gameState->ballWidth ,gameState->ballHeight, v3(255.0f,0.0f,0.0f));  
   drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
@@ -512,5 +529,5 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBuffer)
 {
   Game_State *gameState = (Game_State*)gameMemory->permanentStorage;
-  gameSoundOutput(gameSoundBuffer,gameMemory);
+  //gameSoundOutput(gameSoundBuffer,gameMemory);
 }

@@ -218,4 +218,5 @@ struct Game_sound_output
 };
 
 File_content readFile(char *filename);
-void gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input,Game_Memory *gameMemory,Game_sound_output * gameSoundBuffer); 
+void gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input,Game_Memory *gameMemory); 
+void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBuffer);

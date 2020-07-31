@@ -569,10 +569,8 @@ int WinMain(HINSTANCE hInstance,
 	  Game_Memory gameMemory = {};
 	  gameMemory.permanentStorageSize = MEGABYTES(64);
 	  gameMemory.permanentStorage = VirtualAlloc(0, gameMemory.permanentStorageSize, MEM_COMMIT | MEM_RESERVE,PAGE_READWRITE);
-	  if(!gameMemory.permanentStorage)
-	    {
-	      assert(0)
-	    }
+	  assert(gameMemory.permanentStorageSize);
+	  assert(gameMemory.permanentStorage);
 	  
 	  s32 debugTimeMarkerIndex = 0;
 	  Debug_time_marker debugTimeMarkers[15] = {0};
@@ -594,7 +592,7 @@ int WinMain(HINSTANCE hInstance,
 	  DWORD audioLatencyBytes   = 0;
 	  f32 audioLatencySeconds  = 0;	 
 	  
-	  soundOutput.safetyBytes = (soundOutput.samplesPerSecond * 4 / gameUpdateHZ) * 1.8f;
+	  soundOutput.safetyBytes = (soundOutput.samplesPerSecond * 4 / gameUpdateHZ) * 2;
 	  s16 *soundBuffer = (s16*)VirtualAlloc(0, soundOutput.secondaryBufferSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	  bool soundOsPlaying = false;
 	  initAudio(window, soundOutput.secondaryBufferSize);
@@ -764,10 +762,12 @@ int WinMain(HINSTANCE hInstance,
 		  currentTime = getClockValue();
 		  delta = getDifferenceTime(currentTime,lastTime) / (f32)performanceFreq;	      	      
 		  Window_dim dim = getWindowDim(window);
+#if 0
 #if DEBUG
 		  drawDebugSyncAudioDisplay(&gBackbuffer,&soundOutput, debugTimeMarkers, debugTimeMarkerIndex - 1,
 					    arrayCount(debugTimeMarkers));
-#endif	      
+#endif
+#endif
 		  stretchBitsToScreen(deviceContext, &gBackbuffer,dim.width, dim.height);
 		  
 		  flipWallClock = getClockValue();

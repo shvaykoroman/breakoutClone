@@ -580,7 +580,7 @@ int WinMain(HINSTANCE hInstance,
 	  gGameIsRunning = true;
 	  gWindowHandle = window;
 
-	  s32 gameUpdateHZ = 30;
+	  s32 gameUpdateHZ = 60;
 	  f32 targetSecondsPerFrame = 1.0f/(f32)gameUpdateHZ;
 	  
 	  Sound_output soundOutput;	  
@@ -594,7 +594,7 @@ int WinMain(HINSTANCE hInstance,
 	  DWORD audioLatencyBytes   = 0;
 	  f32 audioLatencySeconds  = 0;	 
 	  
-	  soundOutput.safetyBytes = (soundOutput.samplesPerSecond * 4 / gameUpdateHZ) / 2;
+	  soundOutput.safetyBytes = (soundOutput.samplesPerSecond * 4 / gameUpdateHZ) * 1.8f;
 	  s16 *soundBuffer = (s16*)VirtualAlloc(0, soundOutput.secondaryBufferSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	  bool soundOsPlaying = false;
 	  initAudio(window, soundOutput.secondaryBufferSize);
@@ -701,7 +701,7 @@ int WinMain(HINSTANCE hInstance,
 			{
 			  bytesToWrite = targetCursor - byteToLock;
 			}
-
+		      
 		      
 		      Game_sound_output gameSoundOutput = {};
 		      gameSoundOutput.samplesPerSec = soundOutput.samplesPerSecond;
@@ -744,13 +744,11 @@ int WinMain(HINSTANCE hInstance,
 		  
 		  if(secondsElapsedSoFar < targetSecondsPerFrame)
 		    {		  
-		      DWORD sleepMS = (DWORD)(1000.0f * (targetSecondsPerFrame - secondsElapsedSoFar));
-		      /*
-		      if(sleepMS > 0)
-			{
-			  Sleep(sleepMS);
-			}		  
-		      */
+		      DWORD sleepMS = (DWORD)(1000.0f * (targetSecondsPerFrame - secondsElapsedSoFar));		      /*
+															if(sleepMS > 0)
+															{
+															Sleep(sleepMS);
+															}		  		      */
 		      currentTime = getClockValue();
 		      secondsElapsedSoFar =  getDifferenceTime(currentTime, lastTime) / (f32)performanceFreq;
 		      while(secondsElapsedSoFar < targetSecondsPerFrame)

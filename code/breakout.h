@@ -27,6 +27,8 @@ typedef double   f64;
 #define assert(expr); if(!(expr)) {*(s32*)0 = 0;}
 #define arrayCount(array) (sizeof(array) / sizeof(array[0])) 
 
+#define MAX_BRICKS 200
+
 struct Game_Framebuffer
 {
   s32 width;
@@ -72,26 +74,6 @@ struct Game_Memory
   void *permanentStorage;
   s64   permanentStorageSize;
 
-};
-
-struct Loaded_sound
-{
-  u32 sampleCount;
-  u32 channelCount;
-  s16 *samples[2];
-};
-
-struct Game_State
-{
-  f32 brickWidth;
-  f32 brickHeight;
-  f32 ballWidth;
-  f32 ballHeight;
-  s32 bricksCount;
-
-  Loaded_sound testSound;
-  u32 testSampleIndex;
-  bool isInit;
 };
 
 typedef struct v2
@@ -216,6 +198,67 @@ struct Game_sound_output
   u32 samplesToOutput;
   u32 samplesPerSec;
 };
+
+
+struct Loaded_sound
+{
+  u32 sampleCount;
+  u32 channelCount;
+  s16 *samples[2];
+};
+
+
+struct Sound_id
+{
+  u32 value;
+};
+
+struct Playing_sound
+{
+  f32 volume[2];
+  s32 samplesPlayed;
+  Sound_id ID;
+  Playing_sound *next;  
+};
+
+
+struct Brick
+{
+  v3 color;
+  v2 pos;   
+
+  bool destroyed;
+};
+
+
+struct Level
+{
+  u32 width;
+  u32 height;
+  s32 bricksCount;
+  Brick bricks[MAX_BRICKS];
+  
+  u8 *map;  
+};
+
+struct Game_State
+{
+  f32 brickWidth;
+  f32 brickHeight;
+  f32 ballWidth;
+  f32 ballHeight;
+  s32 bricksCount;
+  
+  Level currentLevel;
+  
+  Loaded_sound testSound;
+  u32 testSampleIndex;
+
+  Playing_sound *firstPlayingSound;
+  
+  bool isInit;
+};
+
 
 File_content readFile(char *filename);
 void gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input,Game_Memory *gameMemory); 
