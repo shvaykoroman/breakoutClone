@@ -72,8 +72,11 @@ struct Input
 struct Game_Memory
 {
   void *permanentStorage;
-  s64   permanentStorageSize;
+  s64 permanentStorageSize;
 
+  void *transientStorage;
+  s64 transientStorageSize;
+  
 };
 
 typedef struct v2
@@ -207,17 +210,10 @@ struct Loaded_sound
   s16 *samples[2];
 };
 
-
-struct Sound_id
-{
-  u32 value;
-};
-
 struct Playing_sound
 {
   f32 volume[2];
-  s32 samplesPlayed;
-  Sound_id ID;
+  u32 samplesPlayed;
   Playing_sound *next;  
 };
 
@@ -241,8 +237,33 @@ struct Level
   u8 *map;  
 };
 
+
+struct Memory_arena
+{
+  u8 *base;
+  size_t size;
+  size_t used;
+
+  s32 tempCount;
+};
+
+struct Transient_state
+{
+  Memory_arena *transArena;
+  bool isInit;
+};
+
+
+struct Temp_memory
+{
+  Memory_arena *arena;
+  size_t used;
+};
+
 struct Game_State
 {
+  Memory_arena transArena;
+  
   f32 brickWidth;
   f32 brickHeight;
   f32 ballWidth;
@@ -255,6 +276,7 @@ struct Game_State
   u32 testSampleIndex;
 
   Playing_sound *firstPlayingSound;
+  Playing_sound *firstFreePlayingSound;
   
   bool isInit;
 };
