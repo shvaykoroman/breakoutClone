@@ -214,6 +214,7 @@ struct Playing_sound
 {
   f32 volume[2];
   u32 samplesPlayed;
+  Loaded_sound loadedSound;
   Playing_sound *next;  
 };
 
@@ -231,7 +232,7 @@ struct Level
 {
   u32 width;
   u32 height;
-  s32 bricksCount;
+  u32 bricksCount;
   Brick bricks[MAX_BRICKS];
   
   u8 *map;  
@@ -249,7 +250,7 @@ struct Memory_arena
 
 struct Transient_state
 {
-  Memory_arena *transArena;
+  Memory_arena transArena;
   bool isInit;
 };
 
@@ -260,8 +261,40 @@ struct Temp_memory
   size_t used;
 };
 
+
+struct Ball
+{
+  v2 pos;
+  v2 size;
+  v2 velocity;
+};  
+
+struct Player
+{
+  v3 color;
+  v2 pos;
+  v2 size;
+};
+
+enum Powerup_type
+{
+ powerup_increasingPaddleSize,
+ powerup_doublePoints,
+ powerup_addingBalls
+};
+
+
+struct Powerup
+{
+  v2 startPos;
+  
+  Powerup_type type;
+};
+
+
 struct Game_State
 {
+  Memory_arena levelArena;
   Memory_arena transArena;
   
   f32 brickWidth;
@@ -271,9 +304,9 @@ struct Game_State
   s32 bricksCount;
   
   Level currentLevel;
-  
-  Loaded_sound testSound;
-  u32 testSampleIndex;
+
+  u32 nextPowerup;
+  Powerup powerup;
 
   Playing_sound *firstPlayingSound;
   Playing_sound *firstFreePlayingSound;

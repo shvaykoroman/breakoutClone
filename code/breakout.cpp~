@@ -321,14 +321,19 @@ beginTempMemory(Memory_arena *arena)
 }
 
 inline void
-endBeginMemory(Temp_memory tempMemory)
+endTempMemory(Temp_memory tempMemory)
 {
   Memory_arena *arena = tempMemory.arena;
   assert(arena->used >= tempMemory.used);
   arena->used = tempMemory.used;
   
   arena->tempCount--;
-  assert(arena->tempCount > 0);
+}
+
+inline void
+checkArena(Memory_arena *arena)
+{
+  assert(arena->tempCount == 0);
 }
 
 struct foo
@@ -338,6 +343,29 @@ struct foo
   s32 lol;
 };
 
+
+internal Playing_sound*
+playSound(Game_State *gameState, char *music)
+{
+  if(!gameState->firstFreePlayingSound)
+    {
+      gameState->firstFreePlayingSound  = (Playing_sound*)pushStruct(&gameState->levelArena, Playing_sound);
+      gameState->firstFreePlayingSound->next = 0;
+    }
+  
+  Playing_sound *playingSound = gameState->firstFreePlayingSound;
+  gameState->firstFreePlayingSound = playingSound->next;
+  
+  playingSound->volume[0] = 1.0f;
+  playingSound->volume[1] = 1.0f;      
+  playingSound->loadedSound = loadWAVEFile(music);
+  playingSound->samplesPlayed = 0;  
+  playingSound->next = gameState->firstPlayingSound;
+  
+  gameState->firstPlayingSound = playingSound;
+  
+  return playingSound;
+}
 void
 gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *gameMemory)
 {
@@ -379,16 +407,10 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   Game_State *gameState = (Game_State*)gameMemory->permanentStorage; 
   if(!gameState->isInit)
     {      
-      
-      Memory_arena levelArena;
-      initArena(&levelArena, gameMemory->permanentStorageSize - sizeof(*gameState),
-		(u8*)gameMemory->permanentStorage + sizeof(*gameState));      
+      initArena(&gameState->levelArena, gameMemory->permanentStorageSize - sizeof(*gameState),
+		(u8*)gameMemory->permanentStorage + sizeof(*gameState));                 
 
-      initArena(&gameState->transArena, gameMemory->transientStorageSize,(u8*)gameMemory->transientStorage);
-      
-      foo *Foo = (foo*)pushStruct(&levelArena, foo);
-      Foo->bar = 6;
-      Foo->foobar = 10;
+      //playSound(gameState, "music_test.wav");
       
       gameState->brickWidth  = 64.0f;
       gameState->brickHeight = 21.0f;
@@ -405,18 +427,18 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       f32 ballStartingPositionX = 500;
       f32 ballStartingPositionY = 600;
       ball.pos = v2(ballStartingPositionX, ballStartingPositionY);
-      ball.velocity = v2(0.0f, -200.0f);
-      
-      gameState->testSampleIndex = 0;
+      ball.velocity = v2(0.0f, -200.0f);      
       
       gameState->isInit = true;
     }   
-
-  assert(sizeof(Trans_state) < gameMemory->transientStorageSize);
-  Trans_state *transState = (Trans_state*)gameMemory->transientStorage;
-  if(transState)
+  
+  assert(sizeof(Transient_state) < gameMemory->transientStorageSize);
+  Transient_state *transState = (Transient_state*)gameMemory->transientStorage;
+  if(!transState->isInit)
   {
-    
+    initArena(&transState->transArena, gameMemory->transientStorageSize - sizeof(Transient_state),
+	      (u8*)gameMemory->transientStorage + sizeof(Transient_state));
+    transState->isInit = true;
   }
   
 #if DEBUG
@@ -507,6 +529,10 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		        brick->pos.x, brick->pos.y,
 			brick->pos.x + (gameState->brickWidth-1.0f), brick->pos.y+(gameState->brickHeight-1.0f)))
 	{
+	  // NOTE(shvayko): collision sound for brick-ball
+	  playSound(gameState, "bloop_00.wav");
+	  //playSound(gameState, "music_test.wav");
+	  
 	  f32 ballPosCenterX = ball.pos.x + (gameState->ballWidth  / 2.0f);
 	  f32 ballPosCenterY = ball.pos.y + (gameState->ballHeight / 2.0f);
 	  
@@ -576,24 +602,19 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBuffer)
 {
   Game_State *gameState = (Game_State*)gameMemory->permanentStorage; 
+  Transient_state *transState = (Transient_state *)gameMemory->transientStorage;
   
-  Temp_memory mixerMemory = beginTempMemory();
+  Temp_memory mixerMemory = beginTempMemory(&transState->transArena);
   
-  local_persist bool soundIsLoaded = false;
-  if(!soundIsLoaded)
-    {
-      gameState->testSound = loadWAVEFile("bloop_00.wav");
-      soundIsLoaded = true;
-    }
-  
-  f32 *realChannel0 = ;
-  f32 *realChannel1 = ;
+  f32 *realChannel0 = (f32*)pushArray(&transState->transArena, f32, gameSoundBuffer->samplesToOutput);
+  f32 *realChannel1 = (f32*)pushArray(&transState->transArena, f32, gameSoundBuffer->samplesToOutput);
 
   {
-    s32 *dest0 = realChannel0;
-    s32 *dest1 = realChannel1;
-    for(DWORD samplesIndex = playingSound->samplesPlayed;
-	sampleIndex < playingSound->samplesPlayed + gameSoundBuffer->samplesToOutput;
+    f32 *dest0 = realChannel0;
+    f32 *dest1 = realChannel1;                  
+    
+    for(DWORD sampleIndex = 0;
+	sampleIndex < gameSoundBuffer->samplesToOutput;
 	sampleIndex++)
       {
 	*dest0++ = 0;
@@ -601,32 +622,62 @@ void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBu
       }
   }  
   // NOTE(shvayko): sound mixer
-  for(Playing_sound *playingSound = firstPlayingSound; playingSound; playingSound = playingSound->next )
+
+  for(Playing_sound **playingSoundPtr = &gameState->firstPlayingSound;
+      *playingSoundPtr; )
     {
-      s32 *dest0 = realChannel0;
-      s32 *dest1 = realChannel1;
-      f32 volume0 = playingSound->volume[0];
-      f32 volume1 = playingSound->volume[1];
-      
-      for(DWORD samplesIndex = playingSound->samplesPlayed;
-	  sampleIndex < playingSound->samplesPlayed + gameSoundBuffer->samplesToOutput;
-	  sampleIndex++)
+      Playing_sound *playingSound = *playingSoundPtr;
+      bool soundIsFinished = false;
+      if(playingSound->loadedSound.sampleCount)
 	{
-	  f32 sampleValue = gameState->testSound.samples[0][sampleIndex];
-	  *dest0++ = volume0 * sampleValue;
-	  *dest1++ = volume1 * sampleValue;
+	  f32 *dest0 = realChannel0;
+	  f32 *dest1 = realChannel1;
+	  f32 volume0 = playingSound->volume[0];
+	  f32 volume1 = playingSound->volume[1];
+
+	  u32 samplesToMix = gameSoundBuffer->samplesToOutput;
+	  u32 samplesRemaining = playingSound->loadedSound.sampleCount - playingSound->samplesPlayed;
+	
+	  if(samplesToMix > samplesRemaining)
+	    {
+	      samplesToMix = samplesRemaining;
+	    }
+	
+	  for(DWORD sampleIndex = playingSound->samplesPlayed;
+	      sampleIndex < playingSound->samplesPlayed + samplesToMix;
+	      sampleIndex++)
+	    {
+	      f32 sampleValue = playingSound->loadedSound.samples[0][sampleIndex];
+	      *dest0++ = volume0 * sampleValue;
+	      *dest1++ = volume1 * sampleValue;
+	    }
+	  playingSound->samplesPlayed += samplesToMix;
+	  soundIsFinished = (playingSound->samplesPlayed == playingSound->loadedSound.sampleCount);
+	}
+      // NOTE(shvayko): sound gets killed	 
+      if(soundIsFinished)
+	{
+	  *playingSoundPtr = playingSound->next;
+	  playingSound->next = gameState->firstFreePlayingSound;
+	  gameState->firstFreePlayingSound = playingSound;
+	}
+      else
+	{
+	  playingSoundPtr = &playingSound->next;
 	}
     }
-
+    
   {
-    s32 *source0 = realChannel0;
-    s32 *source1 = realChannel1;
+    f32 *source0 = realChannel0;
+    f32 *source1 = realChannel1;
     s16 *sampleDest = gameSoundBuffer->samples;  
     for(DWORD sampleIndex = 0; sampleIndex < gameSoundBuffer->samplesToOutput; sampleIndex++)
       {
 	*sampleDest++ = (s16)(*source0++);
 	*sampleDest++ = (s16)(*source1++);
       }
-  }    
+  }
+  endTempMemory(mixerMemory);
+  checkArena(&transState->transArena);
   //gameSoundOutput(gameSoundBuffer,gameMemory);
 }

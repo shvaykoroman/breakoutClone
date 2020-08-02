@@ -567,9 +567,11 @@ int WinMain(HINSTANCE hInstance,
 	{
 	  
 	  Game_Memory gameMemory = {};
-	  gameMemory.permanentStorageSize = MEGABYTES(64);
+	  gameMemory.permanentStorageSize = MEGABYTES(256);
 	  gameMemory.permanentStorage = VirtualAlloc(0, gameMemory.permanentStorageSize, MEM_COMMIT | MEM_RESERVE,PAGE_READWRITE);
-	  assert(gameMemory.permanentStorageSize);
+	  gameMemory.transientStorageSize = MEGABYTES(64);
+	  gameMemory.transientStorage = VirtualAlloc(0, gameMemory.transientStorageSize, MEM_COMMIT | MEM_RESERVE,PAGE_READWRITE);
+	  assert(gameMemory.transientStorage);
 	  assert(gameMemory.permanentStorage);
 	  
 	  s32 debugTimeMarkerIndex = 0;

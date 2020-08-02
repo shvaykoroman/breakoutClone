@@ -213,7 +213,8 @@ struct Loaded_sound
 struct Playing_sound
 {
   f32 volume[2];
-  s32 samplesPlayed;
+  u32 samplesPlayed;
+  Loaded_sound loadedSound;
   Playing_sound *next;  
 };
 
@@ -237,6 +238,7 @@ struct Level
   u8 *map;  
 };
 
+
 struct Memory_arena
 {
   u8 *base;
@@ -244,6 +246,12 @@ struct Memory_arena
   size_t used;
 
   s32 tempCount;
+};
+
+struct Transient_state
+{
+  Memory_arena transArena;
+  bool isInit;
 };
 
 
@@ -255,6 +263,7 @@ struct Temp_memory
 
 struct Game_State
 {
+  Memory_arena levelArena;
   Memory_arena transArena;
   
   f32 brickWidth;
@@ -265,10 +274,10 @@ struct Game_State
   
   Level currentLevel;
   
-  Loaded_sound testSound;
   u32 testSampleIndex;
 
   Playing_sound *firstPlayingSound;
+  Playing_sound *firstFreePlayingSound;
   
   bool isInit;
 };
