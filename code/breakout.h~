@@ -232,7 +232,7 @@ struct Level
 {
   u32 width;
   u32 height;
-  s32 bricksCount;
+  u32 bricksCount;
   Brick bricks[MAX_BRICKS];
   
   u8 *map;  
@@ -261,6 +261,37 @@ struct Temp_memory
   size_t used;
 };
 
+
+struct Ball
+{
+  v2 pos;
+  v2 size;
+  v2 velocity;
+};  
+
+struct Player
+{
+  v3 color;
+  v2 pos;
+  v2 size;
+};
+
+enum Powerup_type
+{
+ powerup_increasingPaddleSize,
+ powerup_doublePoints,
+ powerup_addingBalls
+};
+
+
+struct Powerup
+{
+  v2 startPos;
+  
+  Powerup_type type;
+};
+
+
 struct Game_State
 {
   Memory_arena levelArena;
@@ -273,8 +304,9 @@ struct Game_State
   s32 bricksCount;
   
   Level currentLevel;
-  
-  u32 testSampleIndex;
+
+  u32 nextPowerup;
+  Powerup powerup;
 
   Playing_sound *firstPlayingSound;
   Playing_sound *firstFreePlayingSound;
