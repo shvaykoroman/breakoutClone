@@ -118,7 +118,7 @@ void initAudio(HWND window, s32 secondaryBufferSize)
 	      bufferDesc.dwSize         = sizeof(bufferDesc);
 	      bufferDesc.dwFlags        = DSBCAPS_PRIMARYBUFFER;
 	      bufferDesc.lpwfxFormat    = 0; 
-	  
+	      
 	      if(SUCCEEDED(directSound->CreateSoundBuffer(&bufferDesc,&primaryBuffer,0)))
 		{	      
 		  if(SUCCEEDED(primaryBuffer->SetFormat(&waveFormat)))

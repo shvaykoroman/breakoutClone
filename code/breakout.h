@@ -228,12 +228,30 @@ struct Brick
 };
 
 
+enum Powerup_type
+{
+ powerup_increasingPaddleSize,
+ powerup_doublePoints,
+ powerup_addingBalls
+};
+
+
+struct Powerup
+{
+  v2 startPos;
+  bool taken;
+  
+  Powerup_type type;
+};
+
+
 struct Level
 {
   u32 width;
   u32 height;
   u32 bricksCount;
   Brick bricks[MAX_BRICKS];
+  Powerup powerups[MAX_BRICKS];
   
   u8 *map;  
 };
@@ -276,21 +294,60 @@ struct Player
   v2 size;
 };
 
-enum Powerup_type
-{
- powerup_increasingPaddleSize,
- powerup_doublePoints,
- powerup_addingBalls
-};
 
-
-struct Powerup
+internal void
+initArena(Memory_arena *arena, size_t size, u8 *base)
 {
-  v2 startPos;
+  arena->base = base;
+  arena->used = 0;
+  arena->size = size;
+  arena->tempCount = 0;
+}
+
+#define pushStruct(arena, type) _pushSize(arena,sizeof(type))
+#define pushArray(arena, type, num) _pushSize(arena, sizeof(type)*num)
+
+inline void*
+_pushSize(Memory_arena *arena, size_t size)
+{
+  void *result = (arena->base + arena->used);
+  arena->used += size;
+  return result;
+}
+
+inline Temp_memory
+beginTempMemory(Memory_arena *arena)
+{
+  Temp_memory result;
+
+  result.arena = arena;
+  result.used = arena->used;
+  arena->tempCount++;
+  return result;
+}
+
+inline void
+endTempMemory(Temp_memory tempMemory)
+{
+  Memory_arena *arena = tempMemory.arena;
+  assert(arena->used >= tempMemory.used);
+  arena->used = tempMemory.used;
   
-  Powerup_type type;
-};
+  arena->tempCount--;
+}
 
+inline void
+checkArena(Memory_arena *arena)
+{
+  assert(arena->tempCount == 0);
+}
+
+struct Loaded_bitmap
+{
+  s32 width;
+  s32 height;
+  u8 *pixels;
+};
 
 struct Game_State
 {
@@ -301,14 +358,16 @@ struct Game_State
   f32 brickHeight;
   f32 ballWidth;
   f32 ballHeight;
+  f32 powerupWidth;
+  f32 powerupHeight;
   s32 bricksCount;
   
   Level currentLevel;
 
   u32 nextPowerup;
-  Powerup powerup;
 
-
+  Loaded_bitmap testBitmap;
+  
   Loaded_sound bloop;
   Playing_sound *firstPlayingSound;
   Playing_sound *firstFreePlayingSound;

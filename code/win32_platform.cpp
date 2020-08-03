@@ -15,6 +15,17 @@ global Backbuffer gBackbuffer;
 global LPDIRECTSOUNDBUFFER gSecondaryBuffer;
 global HWND gWindowHandle;
 global bool globalPause;
+
+
+void
+freeFile(File_content *fileContent)
+{
+  if(fileContent->memory)
+    {
+      VirtualFree(fileContent->memory,0, MEM_RELEASE);
+    }
+}
+
 File_content
 readFile(char *filename)
 {
@@ -35,8 +46,8 @@ readFile(char *filename)
 	  // NOTE(shvayko): file read success
 	}
       else
-	{
-	  VirtualFree(result.memory, 0, MEM_RELEASE);
+	{	  
+	  VirtualFree(result.memory,0, MEM_RELEASE);
 	}
     }
   else
@@ -539,15 +550,6 @@ int WinMain(HINSTANCE hInstance,
   windowClass.hCursor       = LoadCursorA(0, IDC_ARROW);
   windowClass.lpszClassName = WINDOW_CLASS_NAME;
 
-  /*
-    char *filename = __FILE__;  
-    File_content fileContent = readFile(filename);
-
-    if(fileContent.memory)
-    {
-    VirtualFree(fileContent.memory,0, MEM_RELEASE);
-    }
-  */
   
   if(RegisterClassA(&windowClass))
     {

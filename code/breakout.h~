@@ -308,6 +308,8 @@ struct Game_State
   u32 nextPowerup;
   Powerup powerup;
 
+
+  Loaded_sound bloop;
   Playing_sound *firstPlayingSound;
   Playing_sound *firstFreePlayingSound;
   

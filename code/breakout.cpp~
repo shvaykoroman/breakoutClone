@@ -384,7 +384,7 @@ struct foo
 
 
 internal Playing_sound*
-playSound(Game_State *gameState, char *music)
+playSound(Game_State *gameState, Loaded_sound sound)
 {
   if(!gameState->firstFreePlayingSound)
     {
@@ -395,8 +395,9 @@ playSound(Game_State *gameState, char *music)
   gameState->firstFreePlayingSound = playingSound->next;
   
   playingSound->volume[0] = 1.0f;
-  playingSound->volume[1] = 1.0f;      
-  playingSound->loadedSound = loadWAVEFile(music);
+  playingSound->volume[1] = 1.0f;
+  playingSound->loadedSound = sound;
+    
   playingSound->samplesPlayed = 0;  
   playingSound->next = gameState->firstPlayingSound;
   
@@ -449,6 +450,9 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		(u8*)gameMemory->permanentStorage + sizeof(*gameState));                 
 
       //playSound(gameState, "music_test.wav");
+
+      char *bloop = "bloop_00.wav";
+      gameState->bloop = loadWAVEFile(bloop);
       
       gameState->brickWidth  = 64.0f;
       gameState->brickHeight = 21.0f;
@@ -568,8 +572,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 			brick->pos.x + (gameState->brickWidth-1.0f), brick->pos.y+(gameState->brickHeight-1.0f)))
 	{
 	  // NOTE(shvayko): collision sound for brick-ball
-	  playSound(gameState, "bloop_00.wav");
-	  //playSound(gameState, "music_test.wav");
+	  playSound(gameState, gameState->bloop);	  
 	  
 	  f32 ballPosCenterX = ball.pos.x + (gameState->ballWidth  / 2.0f);
 	  f32 ballPosCenterY = ball.pos.y + (gameState->ballHeight / 2.0f);
