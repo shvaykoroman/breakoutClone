@@ -2,6 +2,13 @@
 
 #define DEBUG 1
 
+// TODO(shvayko): may be add enum for flags?
+#define DOUBLE_POINTS        (1 << 0) // 1
+#define ADDITIONAL_BALLS     (1 << 1) // 2
+#define INCREASE_PLAYER_SIZE (1 << 2) // 4 
+
+#define SET_FLAG(n,f) ((n) |= (f))
+
 #pragma pack(push,1)
 struct Bitmap_info
 {
@@ -496,7 +503,14 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       initArena(&gameState->levelArena, gameMemory->permanentStorageSize - sizeof(*gameState),
 		(u8*)gameMemory->permanentStorage + sizeof(*gameState));                 
 
-      //playSound(gameState, "music_test.wav");
+
+      gameState->powerupsFlag = 0x00000000;
+      
+      u32 active_powerups = 0x00000000;
+
+      active_powerups = SET_FLAG(active_powerups, DOUBLE_POINTS);
+      active_powerups = SET_FLAG(active_powerups, ADDITIONAL_BALLS);
+      active_powerups = SET_FLAG(active_powerups, INCREASE_PLAYER_SIZE);
       
       char *bloop = "bloop_00.wav";
       gameState->bloop = loadWAVEFile(bloop);

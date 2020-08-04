@@ -361,6 +361,8 @@ struct Game_State
   f32 powerupWidth;
   f32 powerupHeight;
   s32 bricksCount;
+
+  s32 powerupsFlag;
   
   Level currentLevel;
 
