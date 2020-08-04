@@ -346,7 +346,7 @@ struct Loaded_bitmap
 {
   s32 width;
   s32 height;
-  u8 *pixels;
+  u32 *pixels;
 };
 
 struct Game_State

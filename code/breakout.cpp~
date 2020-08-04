@@ -2,6 +2,57 @@
 
 #define DEBUG 1
 
+#pragma pack(push,1)
+struct Bitmap_info
+{
+  u16 fileType;
+  u32 fileSize;
+  u16 reserved1;
+  u16 reserved2;
+  u32 bitmapOffset;  
+  u32 size;
+  s32 width;
+  s32 height;
+  u16 planes;
+  u16 bitsPerPixel;
+  
+  u32 compression;
+  u32 sizeOfBitmap;
+  s32 horzResolution;
+  s32 vertResolution;
+  u32 colorUsed;
+  u32 colorsImportant;
+};
+#pragma pack(pop)
+
+internal Loaded_bitmap
+loadBitmap(char *filename)
+{
+  Loaded_bitmap result = {};
+  File_content fileContent = readFile(filename);
+  if(fileContent.memory)
+    {
+      Bitmap_info *content = (Bitmap_info*)fileContent.memory;
+      result.width  = content->width;
+      result.height = content->height;
+      result.pixels = (u8*)fileContent.memory + content->bitmapOffset;
+
+      //NOTE(shvayko): reversing byte order for bmp format!
+      u8 *source = (u8*)result.pixels;
+      for(s32 y = 0; y < result.height;y++)
+	{
+	  for(s32 x = 0; x < result.width; x++)
+	    {
+	      // TODO(shvayko): byte reversing doesn't work yet!
+	      *source++ = (*source >> 8) | (*source << 24);
+	    }
+	}
+      
+    }
+  return result;
+}
+
+// TODO(shvayho): should it be in global scope?
 global u32 randNum = 123456;
 
 inline u32
@@ -37,21 +88,20 @@ getRandomNumberInRange(u32 min, u32 max)
   return result;
 }
 
-
 internal Powerup
 addPowerup(Game_State *gameState,v2 brickPosition)
 {
-  Powerup result = {};
+  Powerup *result = (gameState->currentLevel.powerups  + gameState->nextPowerup++);
+  
   f32 startPosX = brickPosition.x + gameState->brickWidth / 2;
   f32 startPosY = brickPosition.y + gameState->brickHeight;
-  result.startPos = v2(startPosX, startPosY);
+  result->startPos = v2(startPosX, startPosY);
   Powerup_type randomType = (Powerup_type)getRandomNumberInRange(0,3);
-  
-  result.type = randomType;
-  
-  gameState->nextPowerup++;
+  result->taken = false;
+  result->type = randomType;
+ 
   assert(gameState->nextPowerup <= gameState->currentLevel.bricksCount);
-  return result;
+  return *result;
 }
 
 
@@ -224,8 +274,6 @@ loadWAVEFile(char *filename)
   return result;
 }
 
-
-
 bool
 checkCollision(f32 minx1, f32 miny1, f32 maxx1, f32 maxy1,
 	       f32 minx2, f32 miny2, f32 maxx2, f32 maxy2)
@@ -328,61 +376,6 @@ loadLevel(Game_State *gameState, u8 *level)
       
 } 
 
-internal void
-initArena(Memory_arena *arena, size_t size, u8 *base)
-{
-  arena->base = base;
-  arena->used = 0;
-  arena->size = size;
-  arena->tempCount = 0;
-}
-
-#define pushStruct(arena, type) _pushSize(arena,sizeof(type))
-#define pushArray(arena, type, num) _pushSize(arena, sizeof(type)*num)
-
-inline void*
-_pushSize(Memory_arena *arena, size_t size)
-{
-  void *result = (arena->base + arena->used);
-  arena->used += size;
-  return result;
-}
-
-inline Temp_memory
-beginTempMemory(Memory_arena *arena)
-{
-  Temp_memory result;
-
-  result.arena = arena;
-  result.used = arena->used;
-  arena->tempCount++;
-  return result;
-}
-
-inline void
-endTempMemory(Temp_memory tempMemory)
-{
-  Memory_arena *arena = tempMemory.arena;
-  assert(arena->used >= tempMemory.used);
-  arena->used = tempMemory.used;
-  
-  arena->tempCount--;
-}
-
-inline void
-checkArena(Memory_arena *arena)
-{
-  assert(arena->tempCount == 0);
-}
-
-struct foo
-{
-  s32 bar;
-  s32 foobar;
-  s32 lol;
-};
-
-
 internal Playing_sound*
 playSound(Game_State *gameState, Loaded_sound sound)
 {
@@ -397,7 +390,7 @@ playSound(Game_State *gameState, Loaded_sound sound)
   playingSound->volume[0] = 1.0f;
   playingSound->volume[1] = 1.0f;
   playingSound->loadedSound = sound;
-    
+  
   playingSound->samplesPlayed = 0;  
   playingSound->next = gameState->firstPlayingSound;
   
@@ -450,14 +443,19 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		(u8*)gameMemory->permanentStorage + sizeof(*gameState));                 
 
       //playSound(gameState, "music_test.wav");
-
+      
       char *bloop = "bloop_00.wav";
       gameState->bloop = loadWAVEFile(bloop);
+
+      gameState->testBitmap = loadBitmap("test.bmp");
       
       gameState->brickWidth  = 64.0f;
       gameState->brickHeight = 21.0f;
       gameState->ballWidth   = 10.0f;
-      gameState->ballHeight  = 10.0f;      
+      gameState->ballHeight  = 10.0f;
+      gameState->powerupWidth  = 15.0f;
+      gameState->powerupHeight = 15.0f;
+      
       gameState->currentLevel.map = firstMap;
       
       loadLevel(gameState, gameState->currentLevel.map);      
@@ -603,19 +601,43 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	    {
 	      ball.velocity.y *= -1.0f;	    
 	    }
-
-	  // NOTE(shvayko): randomization powerups
 	  
-	  if(randomChoice(10))
+	  // NOTE(shvayko): add new powerup to the game
+	  
+	  if(randomChoice(2))
 	    {
-	      addPowerup(gameState,brick->pos);
+	      gameState->currentLevel.powerups[gameState->nextPowerup] = addPowerup(gameState,brick->pos);
 	    }
+	  
 	  
 	  brick->destroyed = true;
 	  break;
 	}
     }
-    
+     
+  // NOTE(shvayko): render all powerups
+  for(u32 powerupIndex = 0; powerupIndex < gameState->nextPowerup; powerupIndex++)
+    {
+      Powerup *powerup = gameState->currentLevel.powerups + powerupIndex;
+      if(powerup->taken) continue; 
+      powerup->startPos.y += 128 * input->dtForFrame;
+
+      if(checkCollision(powerup->startPos.x, powerup->startPos.y,
+			powerup->startPos.x + gameState->powerupWidth,
+			powerup->startPos.y + gameState->powerupHeight,
+			player.pos.x, player.pos.y,
+			player.pos.x+player.size.x, player.pos.y + player.size.y))
+	{
+	  // NOTE(shvayko): Activate powerup
+	  // TODO(shvayko): Create activation powerup
+	  powerup->taken = true;
+	}
+      
+      drawRectangle(framebuffer, powerup->startPos.x, powerup->startPos.y,
+		    gameState->powerupWidth, gameState->powerupHeight,
+		    v3(255.0f,255.0f,0.0f));      
+    }
+  
   // NOTE(shvayko): rendering all active blocks
   for(u32 brickIndex = 0; brickIndex  < gameState->currentLevel.bricksCount; brickIndex++)
     {
@@ -625,14 +647,25 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	{
 	  drawRectangle(framebuffer, brick->pos.x, brick->pos.y,
 			gameState->brickWidth-1.0f,gameState->brickHeight-1.0f,
-			brick->color);	  
+			brick->color);
+	}
+    }   
+
+  // TODO(shvayko): test code delete
+  u8* dest = (u8*)framebuffer->memory;
+  u8* source =  gameState->testBitmap.pixels;  
+  for(s32 y = 0; y < gameState->testBitmap.height; y++)
+    {
+      for(s32 x = 0; x < gameState->testBitmap.width; x++)
+	{
+	  *dest++ = *source++;
+	  *dest++ = *source++;
+	  *dest++ = *source++;
 	}
     }
   
-  
-  
   // NOTE(shvayko): test load level
-#if DEBUG
+#if 0
   if(input->controller.buttonArrowLeft.isDown)
     {
       loadLevel(gameState, firstMap);

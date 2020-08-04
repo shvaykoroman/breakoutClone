@@ -5,11 +5,13 @@
 #pragma pack(push,1)
 struct Bitmap_info
 {
+  
   u16 fileType;
   u32 fileSize;
   u16 reserved1;
-  u16 reserved2;
-  u32 bitmapOffset;  
+  u16 reserved2;  
+  u32 bitmapOffset;
+  
   u32 size;
   s32 width;
   s32 height;
@@ -35,17 +37,18 @@ loadBitmap(char *filename)
       Bitmap_info *content = (Bitmap_info*)fileContent.memory;
       result.width  = content->width;
       result.height = content->height;
-      result.pixels = (u8*)fileContent.memory + content->bitmapOffset;
+      result.pixels = (u32*)((u8*)fileContent.memory + content->bitmapOffset);
 
       //NOTE(shvayko): reversing byte order for bmp format!
-      u8 *source = (u8*)result.pixels;
+      
+      u32 *source = (u32*)result.pixels;
       for(s32 y = 0; y < result.height;y++)
 	{
 	  for(s32 x = 0; x < result.width; x++)
 	    {
-	      // TODO(shvayko): byte reversing doesn't work yet!
-	      *source++ = (*source >> 8) | (*source << 24);
-	    }
+	      *source = (*source >> 0) | (*source << 24);
+	      source++;
+	    }	  
 	}
       
     }
@@ -294,6 +297,57 @@ clearBackbuffer(Game_Framebuffer *framebuffer)
   memset(framebuffer->memory,0,framebuffer->width * framebuffer->height * 4);
 }
 
+internal inline s32
+roundFromFloatToInt(f32 x)
+{
+  s32 result = 0;
+
+  result = (s32)(x + 0.5f);
+  
+  return result;
+}
+
+internal void
+drawSprite(Game_Framebuffer *framebuffer,Loaded_bitmap bitmap, v2 pos)
+{
+
+  s32 positionX    = roundFromFloatToInt(pos.x);
+  s32 positionY    = roundFromFloatToInt(pos.y);
+  s32 maxPositionX = roundFromFloatToInt((f32)bitmap.width  + pos.x);
+  s32 maxPositionY = roundFromFloatToInt((f32)bitmap.height + pos.y);
+
+  if( positionX <= 0)
+    {
+      positionX  = 0;
+    }
+  if(positionY <= 0)
+    {
+      positionY = 0;
+    }
+  if(maxPositionX >= framebuffer->width)
+    {
+      maxPositionX = framebuffer->width;
+    }
+  if(maxPositionY >= framebuffer->height)
+    {
+      maxPositionY = framebuffer->height;
+    }  
+  
+  u8 *destRow = (u8*)framebuffer->memory + (positionX * 4) + (positionY * framebuffer->stride);
+  u32 *sourceRow =  bitmap.pixels;
+  for(s32 y = positionY; y < maxPositionY; ++y)
+    {
+      u32 *dest   = (u32*)destRow;
+      u32 *source = sourceRow;
+      for(s32 x = positionX; x < maxPositionX; ++x)
+	{
+	  *dest++ = *source++;
+	}
+      destRow += framebuffer->stride;
+      sourceRow += bitmap.width;
+    }  
+}
+
 internal void 
 drawRectangle(Game_Framebuffer *framebuffer,f32 realX, f32 realY,f32 width , f32 height, v3 color)
 {
@@ -447,7 +501,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       char *bloop = "bloop_00.wav";
       gameState->bloop = loadWAVEFile(bloop);
 
-      gameState->testBitmap = loadBitmap("test.bmp");
+      gameState->testBitmap = loadBitmap("ball.bmp");
       
       gameState->brickWidth  = 64.0f;
       gameState->brickHeight = 21.0f;
@@ -631,11 +685,8 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  // NOTE(shvayko): Activate powerup
 	  // TODO(shvayko): Create activation powerup
 	  powerup->taken = true;
-	}
-      
-      drawRectangle(framebuffer, powerup->startPos.x, powerup->startPos.y,
-		    gameState->powerupWidth, gameState->powerupHeight,
-		    v3(255.0f,255.0f,0.0f));      
+	}     
+      drawSprite(framebuffer, gameState->testBitmap, powerup->startPos);
     }
   
   // NOTE(shvayko): rendering all active blocks
@@ -648,21 +699,9 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  drawRectangle(framebuffer, brick->pos.x, brick->pos.y,
 			gameState->brickWidth-1.0f,gameState->brickHeight-1.0f,
 			brick->color);
+	  
 	}
     }   
-
-  // TODO(shvayko): test code delete
-  u8* dest = (u8*)framebuffer->memory;
-  u8* source =  gameState->testBitmap.pixels;  
-  for(s32 y = 0; y < gameState->testBitmap.height; y++)
-    {
-      for(s32 x = 0; x < gameState->testBitmap.width; x++)
-	{
-	  *dest++ = *source++;
-	  *dest++ = *source++;
-	  *dest++ = *source++;
-	}
-    }
   
   // NOTE(shvayko): test load level
 #if 0
@@ -750,7 +789,7 @@ void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBu
 	  playingSoundPtr = &playingSound->next;
 	}
     }
-    
+  
   {
     f32 *source0 = realChannel0;
     f32 *source1 = realChannel1;
