@@ -6,7 +6,6 @@
 #define local_persist static
 #define internal static
 
-
 typedef int8_t  s8;
 typedef int16_t s16;
 typedef int32_t s32;
@@ -26,6 +25,7 @@ typedef double   f64;
 
 #define assert(expr); if(!(expr)) {*(s32*)0 = 0;}
 #define arrayCount(array) (sizeof(array) / sizeof(array[0])) 
+#define invalidCodePath (!"invalidCodePath");
 
 #define MAX_BRICKS 200
 
@@ -366,7 +366,9 @@ struct Game_State
 
   u32 nextPowerup;
 
-  Loaded_bitmap testBitmap;
+  Loaded_bitmap ballBitmap;
+  Loaded_bitmap increaseBitmap;
+  Loaded_bitmap doublePointsBitmap;
   
   Loaded_sound bloop;
   Playing_sound *firstPlayingSound;

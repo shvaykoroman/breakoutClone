@@ -501,14 +501,16 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       char *bloop = "bloop_00.wav";
       gameState->bloop = loadWAVEFile(bloop);
 
-      gameState->testBitmap = loadBitmap("ball.bmp");
+      gameState->ballBitmap = loadBitmap("ball.bmp");
+      gameState->increaseBitmap = loadBitmap("increase.bmp");
+      gameState->doublePointsBitmap = loadBitmap("points.bmp");
       
       gameState->brickWidth  = 64.0f;
       gameState->brickHeight = 21.0f;
       gameState->ballWidth   = 10.0f;
       gameState->ballHeight  = 10.0f;
-      gameState->powerupWidth  = 15.0f;
-      gameState->powerupHeight = 15.0f;
+      gameState->powerupWidth  = 25.0f;
+      gameState->powerupHeight = 25.0f;
       
       gameState->currentLevel.map = firstMap;
       
@@ -662,13 +664,12 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	    {
 	      gameState->currentLevel.powerups[gameState->nextPowerup] = addPowerup(gameState,brick->pos);
 	    }
-	  
-	  
+	  	  
 	  brick->destroyed = true;
 	  break;
 	}
     }
-     
+  
   // NOTE(shvayko): render all powerups
   for(u32 powerupIndex = 0; powerupIndex < gameState->nextPowerup; powerupIndex++)
     {
@@ -676,6 +677,29 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       if(powerup->taken) continue; 
       powerup->startPos.y += 128 * input->dtForFrame;
 
+      Loaded_bitmap currentPowerupBitmap = {};
+      switch(powerup->type)
+	{
+	case powerup_increasingPaddleSize:
+	  {
+	    currentPowerupBitmap = gameState->increaseBitmap;
+	  }break;
+	case powerup_doublePoints:
+	  {
+	    currentPowerupBitmap = gameState->doublePointsBitmap;
+	  }break;
+	case powerup_addingBalls:
+	  {
+	    currentPowerupBitmap = gameState->ballBitmap;
+	  }break;
+	default:
+	  {
+	    invalidCodePath;
+	  }
+	}
+
+      drawSprite(framebuffer, currentPowerupBitmap, powerup->startPos);
+      
       if(checkCollision(powerup->startPos.x, powerup->startPos.y,
 			powerup->startPos.x + gameState->powerupWidth,
 			powerup->startPos.y + gameState->powerupHeight,
@@ -685,8 +709,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  // NOTE(shvayko): Activate powerup
 	  // TODO(shvayko): Create activation powerup
 	  powerup->taken = true;
-	}     
-      drawSprite(framebuffer, gameState->testBitmap, powerup->startPos);
+	}      
     }
   
   // NOTE(shvayko): rendering all active blocks
@@ -723,7 +746,6 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 
 void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBuffer)
 {
-  // TODO(shvayko): Transient storage doesn't work
   Game_State *gameState = (Game_State*)gameMemory->permanentStorage; 
   Transient_state *transState = (Transient_state *)gameMemory->transientStorage;
   
