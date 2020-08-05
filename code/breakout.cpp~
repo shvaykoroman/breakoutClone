@@ -2,14 +2,23 @@
 
 #define DEBUG 1
 
+// TODO(shvayko): may be add enum for flags?
+#define DOUBLE_POINTS        (1 << 0) // 1
+#define ADDITIONAL_BALLS     (1 << 1) // 2
+#define INCREASE_PLAYER_SIZE (1 << 2) // 4 
+
+#define SET_FLAG(n,f) ((n) |= (f))
+
 #pragma pack(push,1)
 struct Bitmap_info
 {
+  
   u16 fileType;
   u32 fileSize;
   u16 reserved1;
-  u16 reserved2;
-  u32 bitmapOffset;  
+  u16 reserved2;  
+  u32 bitmapOffset;
+  
   u32 size;
   s32 width;
   s32 height;
@@ -35,17 +44,18 @@ loadBitmap(char *filename)
       Bitmap_info *content = (Bitmap_info*)fileContent.memory;
       result.width  = content->width;
       result.height = content->height;
-      result.pixels = (u8*)fileContent.memory + content->bitmapOffset;
+      result.pixels = (u32*)((u8*)fileContent.memory + content->bitmapOffset);
 
       //NOTE(shvayko): reversing byte order for bmp format!
-      u8 *source = (u8*)result.pixels;
+      
+      u32 *source = (u32*)result.pixels;
       for(s32 y = 0; y < result.height;y++)
 	{
 	  for(s32 x = 0; x < result.width; x++)
 	    {
-	      // TODO(shvayko): byte reversing doesn't work yet!
-	      *source++ = (*source >> 8) | (*source << 24);
-	    }
+	      *source = (*source >> 0) | (*source << 24);
+	      source++;
+	    }	  
 	}
       
     }
@@ -294,6 +304,57 @@ clearBackbuffer(Game_Framebuffer *framebuffer)
   memset(framebuffer->memory,0,framebuffer->width * framebuffer->height * 4);
 }
 
+internal inline s32
+roundFromFloatToInt(f32 x)
+{
+  s32 result = 0;
+
+  result = (s32)(x + 0.5f);
+  
+  return result;
+}
+
+internal void
+drawSprite(Game_Framebuffer *framebuffer,Loaded_bitmap bitmap, v2 pos)
+{
+
+  s32 positionX    = roundFromFloatToInt(pos.x);
+  s32 positionY    = roundFromFloatToInt(pos.y);
+  s32 maxPositionX = roundFromFloatToInt((f32)bitmap.width  + pos.x);
+  s32 maxPositionY = roundFromFloatToInt((f32)bitmap.height + pos.y);
+
+  if( positionX <= 0)
+    {
+      positionX  = 0;
+    }
+  if(positionY <= 0)
+    {
+      positionY = 0;
+    }
+  if(maxPositionX >= framebuffer->width)
+    {
+      maxPositionX = framebuffer->width;
+    }
+  if(maxPositionY >= framebuffer->height)
+    {
+      maxPositionY = framebuffer->height;
+    }  
+  
+  u8 *destRow = (u8*)framebuffer->memory + (positionX * 4) + (positionY * framebuffer->stride);
+  u32 *sourceRow =  bitmap.pixels;
+  for(s32 y = positionY; y < maxPositionY; ++y)
+    {
+      u32 *dest   = (u32*)destRow;
+      u32 *source = sourceRow;
+      for(s32 x = positionX; x < maxPositionX; ++x)
+	{
+	  *dest++ = *source++;
+	}
+      destRow += framebuffer->stride;
+      sourceRow += bitmap.width;
+    }  
+}
+
 internal void 
 drawRectangle(Game_Framebuffer *framebuffer,f32 realX, f32 realY,f32 width , f32 height, v3 color)
 {
@@ -442,19 +503,28 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       initArena(&gameState->levelArena, gameMemory->permanentStorageSize - sizeof(*gameState),
 		(u8*)gameMemory->permanentStorage + sizeof(*gameState));                 
 
-      //playSound(gameState, "music_test.wav");
+
+      gameState->powerupsFlag = 0x00000000;
+      
+      u32 active_powerups = 0x00000000;
+
+      active_powerups = SET_FLAG(active_powerups, DOUBLE_POINTS);
+      active_powerups = SET_FLAG(active_powerups, ADDITIONAL_BALLS);
+      active_powerups = SET_FLAG(active_powerups, INCREASE_PLAYER_SIZE);
       
       char *bloop = "bloop_00.wav";
       gameState->bloop = loadWAVEFile(bloop);
 
-      gameState->testBitmap = loadBitmap("test.bmp");
+      gameState->ballBitmap = loadBitmap("ball.bmp");
+      gameState->increaseBitmap = loadBitmap("increase.bmp");
+      gameState->doublePointsBitmap = loadBitmap("points.bmp");
       
       gameState->brickWidth  = 64.0f;
       gameState->brickHeight = 21.0f;
       gameState->ballWidth   = 10.0f;
       gameState->ballHeight  = 10.0f;
-      gameState->powerupWidth  = 15.0f;
-      gameState->powerupHeight = 15.0f;
+      gameState->powerupWidth  = 25.0f;
+      gameState->powerupHeight = 25.0f;
       
       gameState->currentLevel.map = firstMap;
       
@@ -608,13 +678,12 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	    {
 	      gameState->currentLevel.powerups[gameState->nextPowerup] = addPowerup(gameState,brick->pos);
 	    }
-	  
-	  
+	  	  
 	  brick->destroyed = true;
 	  break;
 	}
     }
-     
+  
   // NOTE(shvayko): render all powerups
   for(u32 powerupIndex = 0; powerupIndex < gameState->nextPowerup; powerupIndex++)
     {
@@ -622,6 +691,29 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       if(powerup->taken) continue; 
       powerup->startPos.y += 128 * input->dtForFrame;
 
+      Loaded_bitmap currentPowerupBitmap = {};
+      switch(powerup->type)
+	{
+	case powerup_increasingPaddleSize:
+	  {
+	    currentPowerupBitmap = gameState->increaseBitmap;
+	  }break;
+	case powerup_doublePoints:
+	  {
+	    currentPowerupBitmap = gameState->doublePointsBitmap;
+	  }break;
+	case powerup_addingBalls:
+	  {
+	    currentPowerupBitmap = gameState->ballBitmap;
+	  }break;
+	default:
+	  {
+	    invalidCodePath;
+	  }
+	}
+
+      drawSprite(framebuffer, currentPowerupBitmap, powerup->startPos);
+      
       if(checkCollision(powerup->startPos.x, powerup->startPos.y,
 			powerup->startPos.x + gameState->powerupWidth,
 			powerup->startPos.y + gameState->powerupHeight,
@@ -631,11 +723,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  // NOTE(shvayko): Activate powerup
 	  // TODO(shvayko): Create activation powerup
 	  powerup->taken = true;
-	}
-      
-      drawRectangle(framebuffer, powerup->startPos.x, powerup->startPos.y,
-		    gameState->powerupWidth, gameState->powerupHeight,
-		    v3(255.0f,255.0f,0.0f));      
+	}      
     }
   
   // NOTE(shvayko): rendering all active blocks
@@ -648,21 +736,9 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  drawRectangle(framebuffer, brick->pos.x, brick->pos.y,
 			gameState->brickWidth-1.0f,gameState->brickHeight-1.0f,
 			brick->color);
+	  
 	}
     }   
-
-  // TODO(shvayko): test code delete
-  u8* dest = (u8*)framebuffer->memory;
-  u8* source =  gameState->testBitmap.pixels;  
-  for(s32 y = 0; y < gameState->testBitmap.height; y++)
-    {
-      for(s32 x = 0; x < gameState->testBitmap.width; x++)
-	{
-	  *dest++ = *source++;
-	  *dest++ = *source++;
-	  *dest++ = *source++;
-	}
-    }
   
   // NOTE(shvayko): test load level
 #if 0
@@ -684,7 +760,6 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 
 void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBuffer)
 {
-  // TODO(shvayko): Transient storage doesn't work
   Game_State *gameState = (Game_State*)gameMemory->permanentStorage; 
   Transient_state *transState = (Transient_state *)gameMemory->transientStorage;
   
@@ -750,7 +825,7 @@ void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBu
 	  playingSoundPtr = &playingSound->next;
 	}
     }
-    
+  
   {
     f32 *source0 = realChannel0;
     f32 *source1 = realChannel1;

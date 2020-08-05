@@ -1,5 +1,11 @@
 #include <immintrin.h>
 
+
+// TODO(shvayko)DELETE THIS FROM GLOBAL SCOPE! 
+s32 nextBrick = 0;
+global Player player;
+global Ball   ball;
+
 #define DEBUG 1
 
 // TODO(shvayko): may be add enum for flags?
@@ -7,12 +13,67 @@
 #define ADDITIONAL_BALLS     (1 << 1) // 2
 #define INCREASE_PLAYER_SIZE (1 << 2) // 4 
 
-#define SET_FLAG(n,f) ((n) |= (f))
+#define SET_FLAG(n,f)  ((n) |= (f))
+#define CHECK_FLAG(n,f)((n) & (f))
+#define CLEAR_FLAG(n,f)((n) &= ~(f))
+
+internal void
+simulatePowerup(Game_State *gameState, Input *input, Powerup_type type)
+{  
+  f32 *powerupTime = &gameState->increasingPaddleSizeTime;
+  u32 flag = INCREASE_PLAYER_SIZE;
+  if(type == DOUBLE_POINTS)
+    {
+      powerupTime = &gameState->doublePointsTime;
+      flag = DOUBLE_POINTS;
+    }
+  else if(type == ADDITIONAL_BALLS)
+    {
+      powerupTime = &gameState->additionalBallsTime;
+      flag = ADDITIONAL_BALLS;
+    }
+
+  if((CHECK_FLAG(gameState->powerupsFlag, flag))) // && (*powerupTime > 0)
+    {
+      switch(type)
+	{
+	case powerup_increasingPaddleSize:
+	  {
+	    if(*powerupTime < 0)
+	      {
+		CLEAR_FLAG(gameState->powerupsFlag, flag);
+		player.size.x -= 20.0f;
+		break;
+	      }
+	  }break;
+	case powerup_doublePoints:
+	  {
+	    if(*powerupTime < 0)
+	      {
+		CLEAR_FLAG(gameState->powerupsFlag, flag);
+		break;
+	      }	    
+	  }break;
+	case powerup_additinonalBalls:
+	  {
+	    if(*powerupTime < 0)
+	      {
+		CLEAR_FLAG(gameState->powerupsFlag, flag);
+		break;
+	      }	    
+	  }break;
+	default:
+	  {
+	    invalidCodePath;
+	  }
+	}
+      *powerupTime -= (input->dtForFrame);
+    }
+}
 
 #pragma pack(push,1)
 struct Bitmap_info
-{
-  
+{  
   u16 fileType;
   u32 fileSize;
   u16 reserved1;
@@ -394,12 +455,6 @@ drawRectangle(Game_Framebuffer *framebuffer,f32 realX, f32 realY,f32 width , f32
     }  
 }
 
-
-// TODO(shvayko)DELETE THIS FROM GLOBAL SCOPE! 
-s32 nextBrick = 0;
-global Player player;
-global Ball   ball;
-
 #define MAX_LEVEL_HEIGHT   10
 #define MAX_LEVEL_WIDTH    20
 
@@ -504,13 +559,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		(u8*)gameMemory->permanentStorage + sizeof(*gameState));                 
 
 
-      gameState->powerupsFlag = 0x00000000;
-      
-      u32 active_powerups = 0x00000000;
-
-      active_powerups = SET_FLAG(active_powerups, DOUBLE_POINTS);
-      active_powerups = SET_FLAG(active_powerups, ADDITIONAL_BALLS);
-      active_powerups = SET_FLAG(active_powerups, INCREASE_PLAYER_SIZE);
+      gameState->powerupsFlag = 0x00000000;      
       
       char *bloop = "bloop_00.wav";
       gameState->bloop = loadWAVEFile(bloop);
@@ -702,7 +751,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  {
 	    currentPowerupBitmap = gameState->doublePointsBitmap;
 	  }break;
-	case powerup_addingBalls:
+	case powerup_additinonalBalls:
 	  {
 	    currentPowerupBitmap = gameState->ballBitmap;
 	  }break;
@@ -720,13 +769,43 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 			player.pos.x, player.pos.y,
 			player.pos.x+player.size.x, player.pos.y + player.size.y))
 	{
-	  // NOTE(shvayko): Activate powerup
-	  // TODO(shvayko): Create activation powerup
+	  // NOTE(shvayko): Activation powerup
+
+	  // NOTE(shvayko): All time in seconds.
+	  switch(powerup->type)
+	    {
+	    case powerup_increasingPaddleSize:
+	      {
+		gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, INCREASE_PLAYER_SIZE);
+		player.size.x += 20.0f;
+		gameState->increasingPaddleSizeTime = 7.0f;  
+	      }break;
+	    case powerup_doublePoints:
+	      {
+		// TODO(shvayko): create rendering fonts first!
+		gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, DOUBLE_POINTS);
+		gameState->doublePointsTime = 7.0f;
+	      }break;
+	    case powerup_additinonalBalls:
+	      {
+		gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, ADDITIONAL_BALLS);
+		gameState->additionalBallsTime = 7.0f;
+	      }break;
+	    default :
+	      {
+		invalidCodePath;
+	      }
+	    }
+	  
 	  powerup->taken = true;
 	}      
     }
+
+  // NOTE(shvayko): simulation powerups
+  // TODO(shvayko): loop?
+  simulatePowerup(gameState,input, powerup_increasingPaddleSize);
   
-  // NOTE(shvayko): rendering all active blocks
+  // NOTE(shvayko): rendering all active bricks in game
   for(u32 brickIndex = 0; brickIndex  < gameState->currentLevel.bricksCount; brickIndex++)
     {
       Brick *brick = gameState->currentLevel.bricks+brickIndex; 
