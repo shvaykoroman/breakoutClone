@@ -232,7 +232,7 @@ enum Powerup_type
 {
  powerup_increasingPaddleSize,
  powerup_doublePoints,
- powerup_addingBalls
+ powerup_additinonalBalls
 };
 
 
@@ -363,6 +363,10 @@ struct Game_State
   s32 bricksCount;
 
   s32 powerupsFlag;
+  f32 increasingPaddleSizeTime;
+  f32 doublePointsTime;
+  f32 additionalBallsTime;
+
   
   Level currentLevel;
 

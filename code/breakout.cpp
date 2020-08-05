@@ -1,12 +1,12 @@
 #include <immintrin.h>
 
+#define DEBUG 1
+#define MAX_BALLS 3
 
 // TODO(shvayko)DELETE THIS FROM GLOBAL SCOPE! 
 s32 nextBrick = 0;
 global Player player;
-global Ball   ball;
-
-#define DEBUG 1
+global Ball   balls[MAX_BALLS];
 
 // TODO(shvayko): may be add enum for flags?
 #define DOUBLE_POINTS        (1 << 0) // 1
@@ -16,6 +16,18 @@ global Ball   ball;
 #define SET_FLAG(n,f)  ((n) |= (f))
 #define CHECK_FLAG(n,f)((n) & (f))
 #define CLEAR_FLAG(n,f)((n) &= ~(f))
+
+internal Ball
+addNewBall(v2 pos, v2 velocity)
+{
+  Ball result = {};
+
+  result.pos = pos;
+  result.velocity = velocity;
+  result.isActive = true;
+  
+  return result;
+}
 
 internal void
 simulatePowerup(Game_State *gameState, Input *input, Powerup_type type)
@@ -585,8 +597,16 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       player.size  = v2(100.0f, 20.0f);
       f32 ballStartingPositionX = 500;
       f32 ballStartingPositionY = 600;
-      ball.pos = v2(ballStartingPositionX, ballStartingPositionY);
-      ball.velocity = v2(0.0f, -200.0f);      
+      v2 ballPos = v2(ballStartingPositionX,ballStartingPositionY);
+      v2 up = v2(0.0f,   -200.0f);
+      v2 down = v2(0.0f, 200.0f);
+      
+      
+      // TODO(shvayko): create function for the creating new balls      
+
+      balls[0] = addNewBall(ballPos, up);
+      balls[1] = addNewBall(v2(200.0f, 6.0f), down);
+      balls[2] = addNewBall(v2(600.0f,100.0f), down);
       
       gameState->isInit = true;
     }   
@@ -603,23 +623,23 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 #if DEBUG
   if(input->controller.buttonArrowLeft.isDown)
     {
-      ball.pos.x++;
-      ball.velocity = v2(-200.0f,0.0f);
+      balls[0].pos.x++;
+      balls[0].velocity = v2(-200.0f,0.0f);
     }
   if(input->controller.buttonArrowRight.isDown)
     {
-      ball.pos.x--;
-      ball.velocity = v2(200.0f,0.0f);
+      balls[0].pos.x--;
+      balls[0].velocity = v2(200.0f,0.0f);
     }
   if(input->controller.buttonArrowUp.isDown)
     {
-      ball.pos.y--;
-      ball.velocity = v2(0.0f,-200.0f);
+      balls[0].pos.y--;
+      balls[0].velocity = v2(0.0f,-200.0f);
     }
   if(input->controller.buttonArrowDown.isDown)
     {
-      ball.pos.y++;
-      ball.velocity = v2(0.0f,200.0f);
+      balls[0].pos.y++;
+      balls[0].velocity = v2(0.0f,200.0f);
     }
   
 #endif  
@@ -637,43 +657,51 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   player.pos = player.pos + (ddPlayer * input->dtForFrame);  
   
   // NOTE(shvayko): collision with player paddle
-  
-  if(checkCollision(ball.pos.x, ball.pos.y,
-		    ball.pos.x + gameState->ballWidth, ball.pos.y + gameState->ballHeight,
-		    player.pos.x, player.pos.y,
-		    player.pos.x+player.size.x, player.pos.y + player.size.y))
-    {
-      // TODO(shvayko): may be use here vector math?
-      f32 centerPlayer = player.pos.x + (player.size.x / 2.0f);
-      f32 distance = ball.pos.x - centerPlayer;
-      f32 per = distance / (player.size.x / 2.0f);
-      f32 strength = 16.0f;
-      v2 oldVelocity = ball.velocity;
 
-      ball.velocity.x = 20.0f * per * strength; 
-      ball.velocity.y *= -1.0f; 
-    }
+  for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
+    {
+      Ball *currentBall = balls + ballIndex;
+      if(!currentBall->isActive) continue; 
+      if(checkCollision(currentBall->pos.x, currentBall->pos.y,
+		        currentBall->pos.x + gameState->ballWidth, currentBall->pos.y + gameState->ballHeight,
+			player.pos.x, player.pos.y,
+			player.pos.x+player.size.x, player.pos.y + player.size.y))
+	{
+	  // TODO(shvayko): may be use here vector math?
+	  f32 centerPlayer = player.pos.x + (player.size.x / 2.0f);
+	  f32 distance = currentBall->pos.x - centerPlayer;
+	  f32 per = distance / (player.size.x / 2.0f);
+	  f32 strength = 16.0f;
+	  v2 oldVelocity = currentBall->velocity;
 
-  // NOTE(shvayko): Ball movement
-
-  if((ball.pos.x + gameState->ballWidth)  > framebuffer->width)
-    {
-      ball.velocity.x *= -1;
+	  currentBall->velocity.x = 20.0f * per * strength; 
+	  currentBall->velocity.y *= -1.0f; 
+	}
     }
-  if(ball.pos.x <= 0)
-    {
-      ball.velocity.x *= -1;
+  // NOTE(shvayko): Simulating balls movement
+  // TODO(shvayko): Create function for simulating the balls
+  for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
+    {        
+      Ball *currentBall = balls + ballIndex;
+      if(!currentBall->isActive) continue; 
+      if((currentBall->pos.x + gameState->ballWidth)  > framebuffer->width)
+	{
+	  currentBall->velocity.x *= -1;
+	}
+      if(currentBall->pos.x <= 0)
+	{
+	  currentBall->velocity.x *= -1;
+	}
+      if(currentBall->pos.y <= 0)
+	{
+	  currentBall->velocity.y *= -1;
+	}
+      if(currentBall->pos.y > framebuffer->height)
+	{
+	  currentBall->velocity.y *= -1;
+	}
+      currentBall->pos = currentBall->pos + (currentBall->velocity * input->dtForFrame);
     }
-  if(ball.pos.y <= 0)
-    {
-      ball.velocity.y *= -1;
-    }
-  if(ball.pos.y > framebuffer->height)
-    {
-      ball.velocity.y *= -1;
-    }
-  ball.pos = ball.pos + (ball.velocity * input->dtForFrame);
-  
   
   // NOTE(shvayko): check collision for every block
   for(u32 brickIndex = 0; brickIndex < gameState->currentLevel.bricksCount; brickIndex++)
@@ -681,55 +709,62 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       assert(nextBrick < MAX_LEVEL_HEIGHT * MAX_LEVEL_WIDTH);
       Brick *brick = gameState->currentLevel.bricks+brickIndex;
       
-      if(brick->destroyed == true) continue;
-      
-      if(checkCollision(ball.pos.x, ball.pos.y,
-			ball.pos.x + gameState->ballWidth, ball.pos.y + gameState->ballHeight,
-		        brick->pos.x, brick->pos.y,
-			brick->pos.x + (gameState->brickWidth-1.0f), brick->pos.y+(gameState->brickHeight-1.0f)))
-	{
-	  // NOTE(shvayko): collision sound for brick-ball
-	  playSound(gameState, gameState->bloop);	  
-	  
-	  f32 ballPosCenterX = ball.pos.x + (gameState->ballWidth  / 2.0f);
-	  f32 ballPosCenterY = ball.pos.y + (gameState->ballHeight / 2.0f);
-	  
-	  v2 ballPosCenter  = v2(ballPosCenterX, ballPosCenterY);
+      if((brick->destroyed == true)) continue;
 
-	  f32 brickPosCenterX = brick->pos.x + (gameState->brickWidth / 2.0f);
-	  f32 brickPosCenterY = brick->pos.y + (gameState->brickHeight / 2.0f);
-	  
-	  v2 brickPosCenter = v2(brickPosCenterX, brickPosCenterY);
-	  
-	  v2 ballToBrick = ballPosCenter - brickPosCenter;
-	  ballToBrick    = normalizeVector(ballToBrick);
-	  v2 brickFacing = v2(0.0f, 1.0f);
-	  
-	  f64 value = dotProduct(ballToBrick, brickFacing);
-	  // NOTE(shvayko): those numbers relative to the brick's center(bottom side is starting point of caclulatuin
-	  f64 angle = acos(value);
-	  if(1.19421 > angle) // NOTE(shvayko): bottom collision
+      for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
+	{
+	  Ball *currentBall = balls + ballIndex;
+	  if(!currentBall->isActive) continue; 
+	  if(checkCollision(currentBall->pos.x, currentBall->pos.y,
+			    currentBall->pos.x + gameState->ballWidth,
+			    currentBall->pos.y + gameState->ballHeight,
+			    brick->pos.x, brick->pos.y,
+			    brick->pos.x + (gameState->brickWidth-1.0f),
+			    brick->pos.y+(gameState->brickHeight-1.0f)))
 	    {
-	      ball.velocity.y *= -1.0f;
-	    }
-	  else if((1.19421 <= angle) && (angle <= 1.98769)) // NOTE(shvayko): left/right collision
-	    {
-	      ball.velocity.x *= -1.0f;
-	    }
-	  else if(angle > 1.98769) // NOTE(shvayko): up collision
-	    {
-	      ball.velocity.y *= -1.0f;	    
-	    }
+	      // NOTE(shvayko): collision sound for brick-ball
+	      playSound(gameState, gameState->bloop);	  
 	  
-	  // NOTE(shvayko): add new powerup to the game
+	      f32 ballPosCenterX = currentBall->pos.x + (gameState->ballWidth  / 2.0f);
+	      f32 ballPosCenterY = currentBall->pos.y + (gameState->ballHeight / 2.0f);
 	  
-	  if(randomChoice(2))
-	    {
-	      gameState->currentLevel.powerups[gameState->nextPowerup] = addPowerup(gameState,brick->pos);
-	    }
+	      v2 ballPosCenter  = v2(ballPosCenterX, ballPosCenterY);
+
+	      f32 brickPosCenterX = brick->pos.x + (gameState->brickWidth / 2.0f);
+	      f32 brickPosCenterY = brick->pos.y + (gameState->brickHeight / 2.0f);
+	  
+	      v2 brickPosCenter = v2(brickPosCenterX, brickPosCenterY);
+	  
+	      v2 ballToBrick = ballPosCenter - brickPosCenter;
+	      ballToBrick    = normalizeVector(ballToBrick);
+	      v2 brickFacing = v2(0.0f, 1.0f);
+	  
+	      f64 value = dotProduct(ballToBrick, brickFacing);
+	      // NOTE(shvayko): those numbers relative to the brick's center(bottom side is starting point of caclulatuin
+	      f64 angle = acos(value);
+	      if(1.19421 > angle) // NOTE(shvayko): bottom collision
+		{
+		  currentBall->velocity.y *= -1.0f;
+		}
+	      else if((1.19421 <= angle) && (angle <= 1.98769)) // NOTE(shvayko): left/right collision
+		{
+		  currentBall->velocity.x *= -1.0f;
+		}
+	      else if(angle > 1.98769) // NOTE(shvayko): up collision
+		{
+		  currentBall->velocity.y *= -1.0f;	    
+		}
+	  
+	      // NOTE(shvayko): add new powerup to the game
+	  
+	      if(randomChoice(2))
+		{
+		  gameState->currentLevel.powerups[gameState->nextPowerup] = addPowerup(gameState,brick->pos);
+		}
 	  	  
-	  brick->destroyed = true;
-	  break;
+	      brick->destroyed = true;
+	      break;
+	    }
 	}
     }
   
@@ -832,7 +867,13 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
     }
 #endif
   
-  drawRectangle(framebuffer, ball.pos.x, ball.pos.y,gameState->ballWidth ,gameState->ballHeight, v3(255.0f,0.0f,0.0f));  
+  for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
+    {
+      if(!(balls[ballIndex].isActive)) continue;
+      drawRectangle(framebuffer, balls[ballIndex].pos.x, balls[ballIndex].pos.y,
+		    gameState->ballWidth ,gameState->ballHeight,
+		    v3(255.0f,0.0f,0.0f));
+    }
   drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
 }
 
