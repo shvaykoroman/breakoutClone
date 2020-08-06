@@ -350,7 +350,8 @@ struct Loaded_bitmap
 {
   s32 width;
   s32 height;
-  u32 *pixels;
+  s32 stride;
+  void *memory;
 };
 
 struct Game_State
@@ -382,7 +383,9 @@ struct Game_State
   Loaded_sound bloop;
   Playing_sound *firstPlayingSound;
   Playing_sound *firstFreePlayingSound;
+
   
+  Loaded_bitmap testFont;
   bool isInit;
 };
 

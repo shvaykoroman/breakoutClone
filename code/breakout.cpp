@@ -1,4 +1,6 @@
 #include <immintrin.h>
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
 
 #define DEBUG 1
 #define MAX_BALLS 3
@@ -16,6 +18,69 @@ global Ball   balls[MAX_BALLS];
 #define SET_FLAG(n,f)  ((n) |= (f))
 #define CHECK_FLAG(n,f)((n) & (f))
 #define CLEAR_FLAG(n,f)((n) &= ~(f))
+
+inline void
+zeroSize(size_t size, void *ptr)
+{
+  u8* byte = (u8*)ptr;
+  while(size--)
+    {
+      *byte++ = 0;
+    }
+}
+
+Loaded_bitmap
+createEmptyBitmap(Memory_arena *arena,s32 width, s32 height)
+{
+  Loaded_bitmap result = {};
+
+  result.width = width;
+  result.height = height;
+
+  result.stride = width * 4;
+  s32 totalBitmapSize = width * height * 4;
+  result.memory = _pushSize(arena,totalBitmapSize);
+  zeroSize(totalBitmapSize,result.memory);
+
+  return result;
+}
+
+// NOTE(shvayko): font proccessing with stb library
+// TODO(shvayko): procces font through win32
+internal Loaded_bitmap
+loadGlyph(Memory_arena *arena)
+{
+  stbtt_fontinfo font;
+  File_content loadedFont = readFile("C:/windows/fonts/consola.ttf");
+  s32 width, height ,xOffset, yOffset;
+
+  stbtt_InitFont(&font, (u8*)loadedFont.memory, stbtt_GetFontOffsetForIndex((u8*)loadedFont.memory,0));
+  
+  u8 *monoBitmap = stbtt_GetCodepointBitmap(&font, 0, stbtt_ScaleForPixelHeight(&font, 120.0f),
+					'R',&width,&height,&xOffset,&yOffset);
+
+  Loaded_bitmap result = createEmptyBitmap(arena, width,height);
+
+  u8 *source = monoBitmap;
+  u8 *destRow = (u8*)result.memory;
+
+  for(s32 y = 0; y < height; y++)
+    {
+      u32 *dest = (u32*)destRow;
+      for(s32 x = 0; x < width; x++)
+	{
+	  u8 alpha = *source++;
+	  *dest++ = ((alpha << 24) |
+		     (alpha << 16) | 
+		     (alpha << 8) |
+		     (alpha << 0));
+	}
+      destRow += result.stride;
+    }
+  
+  stbtt_FreeBitmap(monoBitmap, 0);
+  return result;
+}
 
 internal Ball
 addNewBall(v2 pos, v2 velocity)
@@ -119,11 +184,11 @@ loadBitmap(char *filename)
       Bitmap_info *content = (Bitmap_info*)fileContent.memory;
       result.width  = content->width;
       result.height = content->height;
-      result.pixels = (u32*)((u8*)fileContent.memory + content->bitmapOffset);
+      result.memory = (u32*)((u8*)fileContent.memory + content->bitmapOffset);
 
       //NOTE(shvayko): reversing byte order for bmp format!
       
-      u32 *source = (u32*)result.pixels;
+      u32 *source = (u32*)result.memory;
       for(s32 y = 0; y < result.height;y++)
 	{
 	  for(s32 x = 0; x < result.width; x++)
@@ -416,7 +481,7 @@ drawSprite(Game_Framebuffer *framebuffer,Loaded_bitmap bitmap, v2 pos)
     }  
   
   u8 *destRow = (u8*)framebuffer->memory + (positionX * 4) + (positionY * framebuffer->stride);
-  u32 *sourceRow =  bitmap.pixels;
+  u32 *sourceRow =  (u32*)bitmap.memory;
   for(s32 y = positionY; y < maxPositionY; ++y)
     {
       u32 *dest   = (u32*)destRow;
@@ -592,6 +657,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       gameState->currentLevel.map = firstMap;
       
       loadLevel(gameState, gameState->currentLevel.map);      
+      gameState->testFont = loadGlyph(&gameState->levelArena);
       
       player.pos.x = framebuffer->width / 2.0f;
       player.pos.y = framebuffer->height - 20.0f;
@@ -808,13 +874,13 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	      {
 		gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, INCREASE_PLAYER_SIZE);
 		player.size.x += 20.0f;
-		gameState->increasingPaddleSizeTime = 7.0f;  
+		gameState->increasingPaddleSizeTime += 7.0f;  
 	      }break;
 	    case powerup_doublePoints:
 	      {
 		// TODO(shvayko): create rendering fonts first!
 		gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, DOUBLE_POINTS);
-		gameState->doublePointsTime = 7.0f;
+		gameState->doublePointsTime += 7.0f;
 	      }break;
 	    case powerup_additinonalBalls:
 	      {
@@ -825,7 +891,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		v2 secondAdditionalBallPos = v2(player.pos.x + player.size.x / 2,player.pos.y - 30.0f);
 		balls[2] = addNewBall(secondAdditionalBallPos,
 				      v2(200.0f, 200.0f));		
-		gameState->additionalBallsTime = 7.0f;
+		gameState->additionalBallsTime += 7.0f;
 	      }break;
 	    default :
 	      {
@@ -874,6 +940,9 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		    gameState->ballWidth ,gameState->ballHeight,
 		    v3(255.0f,0.0f,0.0f));
     }
+  // NOTE(shvayko): testing font rendering
+  //v3 color = v3(0xFF, 0xFF, 0xFF);
+  drawSprite(framebuffer, gameState->testFont,v2(600.0f, 600.0f));
   drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
 }
 

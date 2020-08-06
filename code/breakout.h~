@@ -232,7 +232,9 @@ enum Powerup_type
 {
  powerup_increasingPaddleSize,
  powerup_doublePoints,
- powerup_additinonalBalls
+ powerup_additinonalBalls,
+
+ powerup_count
 };
 
 
