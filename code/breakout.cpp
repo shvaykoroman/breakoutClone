@@ -47,8 +47,9 @@ createEmptyBitmap(Memory_arena *arena,s32 width, s32 height)
 
 // NOTE(shvayko): font proccessing with stb library
 // TODO(shvayko): procces font through win32
+
 internal Loaded_bitmap
-loadGlyph(Memory_arena *arena)
+loadGlyph(Memory_arena *arena, char glyph)
 {
   stbtt_fontinfo font;
   File_content loadedFont = readFile("C:/windows/fonts/consola.ttf");
@@ -56,13 +57,14 @@ loadGlyph(Memory_arena *arena)
 
   stbtt_InitFont(&font, (u8*)loadedFont.memory, stbtt_GetFontOffsetForIndex((u8*)loadedFont.memory,0));
   
-  u8 *monoBitmap = stbtt_GetCodepointBitmap(&font, 0, stbtt_ScaleForPixelHeight(&font, 120.0f),
-					'R',&width,&height,&xOffset,&yOffset);
+  u8 *monoBitmap = stbtt_GetCodepointBitmap(&font, 0, stbtt_ScaleForPixelHeight(&font, 50.0f),
+					glyph,&width,&height,&xOffset,&yOffset);
 
   Loaded_bitmap result = createEmptyBitmap(arena, width,height);
-
+  result.glyphIndex = (u32)glyph;
+    
   u8 *source = monoBitmap;
-  u8 *destRow = (u8*)result.memory;
+  u8 *destRow = (u8*)result.memory + (height - 1)*result.stride;
 
   for(s32 y = 0; y < height; y++)
     {
@@ -75,7 +77,7 @@ loadGlyph(Memory_arena *arena)
 		     (alpha << 8) |
 		     (alpha << 0));
 	}
-      destRow += result.stride;
+      destRow -= result.stride;
     }
   
   stbtt_FreeBitmap(monoBitmap, 0);
@@ -103,7 +105,7 @@ simulatePowerups(Game_State *gameState, Input *input, Powerup_type type0)
       s32 flag = (1 << powerupIndex); 
       if((CHECK_FLAG(gameState->powerupsFlag, flag)))	
 	{
-	  Powerup_type type = (Powerup_type)powerupIndex;
+	  Powerup_type type = (Powerup_type)flag;
 	  switch(type)
 	    {
 	    case powerup_increasingPaddleSize:
@@ -186,8 +188,7 @@ loadBitmap(char *filename)
       result.height = content->height;
       result.memory = (u32*)((u8*)fileContent.memory + content->bitmapOffset);
 
-      //NOTE(shvayko): reversing byte order for bmp format!
-      
+      //NOTE(shvayko): reversing byte order for bmp format!      
       u32 *source = (u32*)result.memory;
       for(s32 y = 0; y < result.height;y++)
 	{
@@ -202,9 +203,10 @@ loadBitmap(char *filename)
   return result;
 }
 
-// TODO(shvayho): should it be in global scope?
+// TODO(shvayko): should it be in global scope?
 global u32 randNum = 123456;
 
+// TODO(shvayko): bad working random system! reimplement
 inline u32
 getRandomNumber()
 {
@@ -462,7 +464,7 @@ drawSprite(Game_Framebuffer *framebuffer,Loaded_bitmap bitmap, v2 pos)
   s32 positionY    = roundFromFloatToInt(pos.y);
   s32 maxPositionX = roundFromFloatToInt((f32)bitmap.width  + pos.x);
   s32 maxPositionY = roundFromFloatToInt((f32)bitmap.height + pos.y);
-
+  
   if( positionX <= 0)
     {
       positionX  = 0;
@@ -481,7 +483,7 @@ drawSprite(Game_Framebuffer *framebuffer,Loaded_bitmap bitmap, v2 pos)
     }  
   
   u8 *destRow = (u8*)framebuffer->memory + (positionX * 4) + (positionY * framebuffer->stride);
-  u32 *sourceRow =  (u32*)bitmap.memory;
+  u32 *sourceRow =  (u32*)bitmap.memory ;// + bitmap.width*(bitmap.height - 1);
   for(s32 y = positionY; y < maxPositionY; ++y)
     {
       u32 *dest   = (u32*)destRow;
@@ -490,10 +492,35 @@ drawSprite(Game_Framebuffer *framebuffer,Loaded_bitmap bitmap, v2 pos)
 	{
 	  *dest++ = *source++;
 	}
-      destRow += framebuffer->stride;
+      destRow -= framebuffer->stride;
       sourceRow += bitmap.width;
     }  
 }
+
+internal Loaded_bitmap
+matchGlyph(Game_State *gameState,char glyph)
+{
+  s32 glyphIndex = 0;
+  while(!(glyph == gameState->glyphs[glyphIndex].glyphIndex))
+    {
+      glyphIndex++;
+    }
+  return gameState->glyphs[glyphIndex];
+}
+
+internal void
+drawText(Game_State *gameState, Game_Framebuffer *framebuffer,f32 scale, v2 pos, char *text)
+{
+  f32 x = pos.x;
+  f32 y = pos.y;
+  for(char *at = text;*at;at++)
+    {
+     x += scale;
+     Loaded_bitmap glyph = matchGlyph(gameState, *at);
+     drawSprite(framebuffer, glyph ,v2(x, y));
+    }
+}
+
 
 internal void 
 drawRectangle(Game_Framebuffer *framebuffer,f32 realX, f32 realY,f32 width , f32 height, v3 color)
@@ -642,7 +669,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       
       char *bloop = "bloop_00.wav";
       gameState->bloop = loadWAVEFile(bloop);
-
+      
       gameState->ballBitmap = loadBitmap("ball.bmp");
       gameState->increaseBitmap = loadBitmap("increase.bmp");
       gameState->doublePointsBitmap = loadBitmap("points.bmp");
@@ -656,8 +683,19 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       
       gameState->currentLevel.map = firstMap;
       
-      loadLevel(gameState, gameState->currentLevel.map);      
-      gameState->testFont = loadGlyph(&gameState->levelArena);
+      loadLevel(gameState, gameState->currentLevel.map);
+      
+      u32 symbolIndex = 0;
+      // NOTE(shvayko): load letters
+      for(u32 symbol = 'A'; symbol < 'z'; symbol++)
+      {
+	gameState->glyphs[symbolIndex++] = loadGlyph(&gameState->levelArena, (char)symbol);
+      }
+      //NOTE(shvayko): load numbers
+      for(u32 symbol = '0'; symbol < ';'; symbol++)
+	{
+	  gameState->glyphs[symbolIndex++] = loadGlyph(&gameState->levelArena, (char)symbol);
+	}
       
       player.pos.x = framebuffer->width / 2.0f;
       player.pos.y = framebuffer->height - 20.0f;
@@ -766,17 +804,15 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
     }
   
   // NOTE(shvayko): check collision for every block
-  for(u32 brickIndex = 0; brickIndex < gameState->currentLevel.bricksCount; brickIndex++)
+  for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
     {
-      assert(nextBrick < MAX_LEVEL_HEIGHT * MAX_LEVEL_WIDTH);
-      Brick *brick = gameState->currentLevel.bricks+brickIndex;
-      
-      if((brick->destroyed == true)) continue;
-
-      for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
+      Ball *currentBall = balls + ballIndex;
+      if(!currentBall->isActive) continue;
+      for(u32 brickIndex = 0; brickIndex < gameState->currentLevel.bricksCount; brickIndex++)
 	{
-	  Ball *currentBall = balls + ballIndex;
-	  if(!currentBall->isActive) continue; 
+	  assert(nextBrick < MAX_LEVEL_HEIGHT * MAX_LEVEL_WIDTH);
+	  Brick *brick = gameState->currentLevel.bricks+brickIndex;
+	  if(brick->destroyed) continue; 
 	  if(checkCollision(currentBall->pos.x, currentBall->pos.y,
 			    currentBall->pos.x + gameState->ballWidth,
 			    currentBall->pos.y + gameState->ballHeight,
@@ -794,9 +830,10 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 
 	      f32 brickPosCenterX = brick->pos.x + (gameState->brickWidth / 2.0f);
 	      f32 brickPosCenterY = brick->pos.y + (gameState->brickHeight / 2.0f);
-	  
+
+	      // TODO(shvayko): collision detection still pretty bugy! fix that!
 	      v2 brickPosCenter = v2(brickPosCenterX, brickPosCenterY);
-	  
+	      
 	      v2 ballToBrick = ballPosCenter - brickPosCenter;
 	      ballToBrick    = normalizeVector(ballToBrick);
 	      v2 brickFacing = v2(0.0f, 1.0f);
@@ -941,8 +978,8 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		    v3(255.0f,0.0f,0.0f));
     }
   // NOTE(shvayko): testing font rendering
-  //v3 color = v3(0xFF, 0xFF, 0xFF);
-  drawSprite(framebuffer, gameState->testFont,v2(600.0f, 600.0f));
+  drawText(gameState, framebuffer, 100.0f, v2(500.0f,500.0f),"Roman");
+  drawText(gameState, framebuffer, 50.0f, v2(200.0f,200.0f),"0123456789"); 
   drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
 }
 
@@ -951,7 +988,7 @@ void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBu
 {
   Game_State *gameState = (Game_State*)gameMemory->permanentStorage; 
   Transient_state *transState = (Transient_state *)gameMemory->transientStorage;
-  
+  // TODO(shvayko): create abilitty to kill the current sound
   Temp_memory mixerMemory = beginTempMemory(&transState->transArena);
   
   f32 *realChannel0 = (f32*)pushArray(&transState->transArena, f32, gameSoundBuffer->samplesToOutput);

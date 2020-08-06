@@ -352,6 +352,8 @@ struct Loaded_bitmap
   s32 height;
   s32 stride;
   void *memory;
+
+  s32 glyphIndex;
 };
 
 struct Game_State
@@ -384,8 +386,8 @@ struct Game_State
   Playing_sound *firstPlayingSound;
   Playing_sound *firstFreePlayingSound;
 
+  Loaded_bitmap glyphs[80];
   
-  Loaded_bitmap testFont;
   bool isInit;
 };
 
