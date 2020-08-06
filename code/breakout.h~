@@ -285,6 +285,8 @@ struct Ball
   v2 pos;
   v2 size;
   v2 velocity;
+
+  bool isActive; // TODO(shvayko): may be bit flag instead boolean type?
 };  
 
 struct Player
@@ -366,7 +368,6 @@ struct Game_State
   f32 increasingPaddleSizeTime;
   f32 doublePointsTime;
   f32 additionalBallsTime;
-
   
   Level currentLevel;
 

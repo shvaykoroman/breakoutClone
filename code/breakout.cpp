@@ -30,56 +30,58 @@ addNewBall(v2 pos, v2 velocity)
 }
 
 internal void
-simulatePowerup(Game_State *gameState, Input *input, Powerup_type type)
-{  
-  f32 *powerupTime = &gameState->increasingPaddleSizeTime;
-  u32 flag = INCREASE_PLAYER_SIZE;
-  if(type == DOUBLE_POINTS)
+simulatePowerups(Game_State *gameState, Input *input, Powerup_type type0)
+{
+  
+  for(s32 powerupIndex = 0; powerupIndex < powerup_count; powerupIndex++)
     {
-      powerupTime = &gameState->doublePointsTime;
-      flag = DOUBLE_POINTS;
-    }
-  else if(type == ADDITIONAL_BALLS)
-    {
-      powerupTime = &gameState->additionalBallsTime;
-      flag = ADDITIONAL_BALLS;
-    }
-
-  if((CHECK_FLAG(gameState->powerupsFlag, flag))) // && (*powerupTime > 0)
-    {
-      switch(type)
+      s32 flag = (1 << powerupIndex); 
+      if((CHECK_FLAG(gameState->powerupsFlag, flag)))	
 	{
-	case powerup_increasingPaddleSize:
-	  {
-	    if(*powerupTime < 0)
+	  Powerup_type type = (Powerup_type)powerupIndex;
+	  switch(type)
+	    {
+	    case powerup_increasingPaddleSize:
 	      {
-		CLEAR_FLAG(gameState->powerupsFlag, flag);
-		player.size.x -= 20.0f;
-		break;
-	      }
-	  }break;
-	case powerup_doublePoints:
-	  {
-	    if(*powerupTime < 0)
+		if(gameState->increasingPaddleSizeTime > 0)
+		  {
+		    gameState->increasingPaddleSizeTime -= input->dtForFrame;
+		  }
+		else
+		  {
+		    player.size.x -= 20.0f;
+		    CLEAR_FLAG(gameState->powerupsFlag, flag);		    
+		    gameState->increasingPaddleSizeTime = 0;
+		  }
+	      }break;
+	    case powerup_doublePoints:
 	      {
-		CLEAR_FLAG(gameState->powerupsFlag, flag);
-		break;
-	      }	    
-	  }break;
-	case powerup_additinonalBalls:
-	  {
-	    if(*powerupTime < 0)
+		if(gameState->doublePointsTime > 0)
+		  {
+		    gameState->doublePointsTime -= input->dtForFrame;
+		  }
+		else
+		  {
+		    CLEAR_FLAG(gameState->powerupsFlag, flag);
+		    gameState->doublePointsTime = 0;
+		  }
+	      }break;
+	    case powerup_additinonalBalls:
 	      {
-		CLEAR_FLAG(gameState->powerupsFlag, flag);
-		break;
-	      }	    
-	  }break;
-	default:
-	  {
-	    invalidCodePath;
-	  }
+		if(gameState->additionalBallsTime > 0)
+		  {
+		    gameState->additionalBallsTime -= input->dtForFrame;
+		  }
+		else
+		  {
+		    CLEAR_FLAG(gameState->powerupsFlag, flag);
+		    gameState->additionalBallsTime = 0;
+		    balls[1].isActive = false;
+		    balls[2].isActive = false;
+		  }
+	      }break;
+	    }
 	}
-      *powerupTime -= (input->dtForFrame);
     }
 }
 
@@ -598,15 +600,9 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       f32 ballStartingPositionX = 500;
       f32 ballStartingPositionY = 600;
       v2 ballPos = v2(ballStartingPositionX,ballStartingPositionY);
-      v2 up = v2(0.0f,   -200.0f);
-      v2 down = v2(0.0f, 200.0f);
-      
-      
-      // TODO(shvayko): create function for the creating new balls      
+      v2 up = v2(0.0f,   -200.0f);            
 
       balls[0] = addNewBall(ballPos, up);
-      balls[1] = addNewBall(v2(200.0f, 6.0f), down);
-      balls[2] = addNewBall(v2(600.0f,100.0f), down);
       
       gameState->isInit = true;
     }   
@@ -805,7 +801,6 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 			player.pos.x+player.size.x, player.pos.y + player.size.y))
 	{
 	  // NOTE(shvayko): Activation powerup
-
 	  // NOTE(shvayko): All time in seconds.
 	  switch(powerup->type)
 	    {
@@ -824,6 +819,12 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	    case powerup_additinonalBalls:
 	      {
 		gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, ADDITIONAL_BALLS);
+		v2 firstAdditionalBallPos = v2(player.pos.x + player.size.x / 2,player.pos.y - 30.0f);
+		balls[1] = addNewBall(firstAdditionalBallPos,
+				      v2(-200.0f,200.0f));
+		v2 secondAdditionalBallPos = v2(player.pos.x + player.size.x / 2,player.pos.y - 30.0f);
+		balls[2] = addNewBall(secondAdditionalBallPos,
+				      v2(200.0f, 200.0f));		
 		gameState->additionalBallsTime = 7.0f;
 	      }break;
 	    default :
@@ -837,8 +838,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
     }
 
   // NOTE(shvayko): simulation powerups
-  // TODO(shvayko): loop?
-  simulatePowerup(gameState,input, powerup_increasingPaddleSize);
+  simulatePowerups(gameState,input, powerup_increasingPaddleSize);
   
   // NOTE(shvayko): rendering all active bricks in game
   for(u32 brickIndex = 0; brickIndex  < gameState->currentLevel.bricksCount; brickIndex++)
