@@ -230,9 +230,9 @@ struct Brick
 
 enum Powerup_type
 {
- powerup_increasingPaddleSize,
  powerup_doublePoints,
  powerup_additinonalBalls,
+ powerup_increasingPaddleSize,
 
  powerup_count
 };
@@ -373,16 +373,16 @@ struct Game_State
   s32 powerupsFlag;
   f32 increasingPaddleSizeTime;
   f32 doublePointsTime;
-  f32 additionalBallsTime;
-  
-  Level currentLevel;
-
+  f32 additionalBallsTime;  
   u32 nextPowerup;
-
   Loaded_bitmap ballBitmap;
   Loaded_bitmap increaseBitmap;
   Loaded_bitmap doublePointsBitmap;
   
+  s32 pointsAddition;
+  
+  Level currentLevel;
+    
   Loaded_sound bloop;
   Playing_sound *firstPlayingSound;
   Playing_sound *firstFreePlayingSound;

@@ -353,8 +353,6 @@ struct Loaded_bitmap
   s32 height;
   s32 stride;
   void *memory;
-
-  s32 glyphIndex;
 };
 
 struct Game_State

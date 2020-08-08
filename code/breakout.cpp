@@ -47,45 +47,6 @@ createEmptyBitmap(Memory_arena *arena,s32 width, s32 height)
   return result;
 }
 
-// NOTE(shvayko): font proccessing with stb library
-// TODO(shvayko): procces font through win32
-
-internal Loaded_bitmap
-loadGlyph(Memory_arena *arena, char glyph)
-{
-  stbtt_fontinfo font;
-  File_content loadedFont = readFile("C:/windows/fonts/consola.ttf");
-  s32 width, height ,xOffset, yOffset;
-
-  stbtt_InitFont(&font, (u8*)loadedFont.memory, stbtt_GetFontOffsetForIndex((u8*)loadedFont.memory,0));
-  
-  u8 *monoBitmap = stbtt_GetCodepointBitmap(&font, 0, stbtt_ScaleForPixelHeight(&font, 30.0f),
-					    glyph,&width,&height,&xOffset,&yOffset);
-  
-  Loaded_bitmap result = createEmptyBitmap(arena, width,height);
-  result.glyphIndex = (u32)glyph;
-    
-  u8 *source = monoBitmap;
-  u8 *destRow = (u8*)result.memory + (height - 1)*result.stride;
-  
-  for(s32 y = 0; y < height; y++)
-    {
-      u32 *dest = (u32*)destRow;
-      for(s32 x = 0; x < width; x++)
-	{
-	  u8 alpha = *source++;
-	  *dest++ = ((alpha << 24) |
-		     (alpha << 16) | 
-		     (alpha << 8) |
-		     (alpha << 0));
-	}
-      destRow -= result.stride;
-    }
-  
-  stbtt_FreeBitmap(monoBitmap, 0);
-  return result;
-}
-
 internal Ball
 addNewBall(v2 pos, v2 velocity)
 {
@@ -486,7 +447,7 @@ drawSprite(Game_Framebuffer *framebuffer,Loaded_bitmap bitmap, v2 pos)
     }  
   
   u8 *destRow = (u8*)framebuffer->memory + (positionX * 4) + (positionY * framebuffer->stride);
-  u32 *sourceRow =  (u32*)bitmap.memory ;
+  u32 *sourceRow =  (u32*)bitmap.memory;
   for(s32 y = positionY; y < maxPositionY; ++y)
     {
       u32 *dest   = (u32*)destRow;
@@ -500,36 +461,65 @@ drawSprite(Game_Framebuffer *framebuffer,Loaded_bitmap bitmap, v2 pos)
     }  
 }
 
-internal Loaded_bitmap
-matchGlyph(Game_State *gameState,char glyph)
+// NOTE(shvayko): font proccessing with stb library
+// TODO(shvayko): procces font through win32
+internal void
+drawText(Game_Framebuffer *framebuffer,Transient_state *transState, char *text, v2 pos,f32 size)
 {
-  s32 glyphIndex = 0;
-  while(!(glyph == gameState->glyphs[glyphIndex].glyphIndex))
+  Temp_memory textMemory = beginTempMemory(&transState->transArena);
+  f32 scaleX = 25.0f;
+  local_persist bool isInit = false;
+  local_persist stbtt_fontinfo font;
+  local_persist File_content loadedFont;
+  s32 width, height ,xOffset, yOffset;      
+  if(!isInit)
     {
-      glyphIndex++;
+      loadedFont = readFile("C:/windows/fonts/consola.ttf");
+      stbtt_InitFont(&font, (u8*)loadedFont.memory, stbtt_GetFontOffsetForIndex((u8*)loadedFont.memory,0));
+      isInit = true;
     }
-  return gameState->glyphs[glyphIndex];
+  
+  for(char *at = text; *at; at++)
+    {
+      u8 *monoBitmap = stbtt_GetCodepointBitmap(&font, 0, stbtt_ScaleForPixelHeight(&font, size),
+						*at,&width,&height,&xOffset,&yOffset);
+      
+      Loaded_bitmap result = createEmptyBitmap(textMemory.arena, width,height);
+
+      u8 *source = monoBitmap;
+      u8 *destRow = (u8*)result.memory + (height - 1)*result.stride;
+  
+      for(s32 y = 0; y < height; y++)
+	{
+	  u32 *dest = (u32*)destRow;
+	  for(s32 x = 0; x < width; x++)
+	    {
+	      u8 alpha = *source++;
+	      *dest++ = ((alpha << 24) |
+			 (alpha << 16) | 
+			 (alpha << 8) |
+			 (alpha << 0));
+	    }
+	  destRow -= result.stride;
+
+	  
+	}
+      pos.x += scaleX;
+      drawSprite(framebuffer,result,pos);
+      stbtt_FreeBitmap(monoBitmap, 0);      
+    }
+  
+  endTempMemory(textMemory);
+  checkArena(&transState->transArena);
 }
 
 internal void
-drawText(Game_State *gameState, Game_Framebuffer *framebuffer,f32 scale, v2 pos, char *text)
-{
-  f32 x = pos.x;
-  f32 y = pos.y;
-  for(char *at = text;*at;at++)
-    {
-     x += scale;
-     Loaded_bitmap glyph = matchGlyph(gameState, *at);
-     drawSprite(framebuffer, glyph ,v2(x, y));
-    }
-}
-
-internal void
-drawScore(Game_State *gameState, Game_Framebuffer *framebuffer, v2 pos, char *srcText,s32 value)
+drawScore(Transient_state *transState, Game_Framebuffer *framebuffer, v2 pos, char *srcText,s32 value)
 {
   char dstText[100];
+  f32 size = 30.0f;
   snprintf(dstText, sizeof(dstText),"%s:%d", srcText,value);
-  drawText(gameState, framebuffer, 25.0f, pos, dstText);
+  drawText(framebuffer,transState, dstText, pos, size);
 }
 
 internal void 
@@ -702,12 +692,12 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       // NOTE(shvayko): load letters
       for(u32 symbol = 'A'; symbol < 'z' + 1; symbol++)
       {
-	gameState->glyphs[symbolIndex++] = loadGlyph(&gameState->levelArena, (char)symbol);
+	//gameState->glyphs[symbolIndex++] = loadGlyph(&gameState->levelArena, (char)symbol);
       }
       //NOTE(shvayko): load numbers
       for(u32 symbol = '0'; symbol < ';'; symbol++)
 	{
-	  gameState->glyphs[symbolIndex++] = loadGlyph(&gameState->levelArena, (char)symbol);
+	  //gameState->glyphs[symbolIndex++] = loadGlyph(&gameState->levelArena, (char)symbol);
 	}
       
       player.pos.x = framebuffer->width / 2.0f;
@@ -919,6 +909,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	{
 	  // NOTE(shvayko): Activation powerup
 	  // NOTE(shvayko): All time in seconds.
+	  // TODO(shvayko): add bad powerups!
 	  switch(powerup->type)
 	    {
 	    case powerup_increasingPaddleSize:
@@ -967,10 +958,13 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   // NOTE(shvayko): simulation powerups
   simulatePowerups(gameState,input, powerup_increasingPaddleSize);
   // NOTE(shvayo): debugging time remaining for powerups
-#if DEBUG
-  drawScore(gameState,framebuffer, v2(20.0f,600.0f), "increasingSize",(s32)gameState->increasingPaddleSizeTime);
-  drawScore(gameState,framebuffer, v2(20.0f,650.0f),"doublePoints",(s32)gameState->doublePointsTime);
-  drawScore(gameState,framebuffer, v2(20.0f,700.0f),"additionalBalls",(s32)gameState->additionalBallsTime);
+#if 1
+  drawScore(transState,framebuffer, v2(20.0f,600.0f),
+	    "increasingSize",(s32)gameState->increasingPaddleSizeTime);
+  drawScore(transState,framebuffer, v2(20.0f,650.0f),
+	    "doublePoints",(s32)gameState->doublePointsTime);
+  drawScore(transState,framebuffer, v2(20.0f,700.0f),
+	    "additionalBalls",(s32)gameState->additionalBallsTime);
 #endif
   // NOTE(shvayko): rendering all active bricks in game
   for(u32 brickIndex = 0; brickIndex  < gameState->currentLevel.bricksCount; brickIndex++)
@@ -1006,7 +1000,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		    gameState->ballWidth ,gameState->ballHeight,
 		    v3(255.0f,0.0f,0.0f));
     }
-  drawScore(gameState,framebuffer,v2(0.0f,30.0f),"Score",gameState->currentLevel.score);
+  drawScore(transState,framebuffer,v2(0.0f,30.0f), "Score",gameState->currentLevel.score);
   drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
 }
 
