@@ -252,6 +252,7 @@ struct Level
   u32 width;
   u32 height;
   u32 bricksCount;
+  s32 score;
   Brick bricks[MAX_BRICKS];
   Powerup powerups[MAX_BRICKS];
   
@@ -350,7 +351,10 @@ struct Loaded_bitmap
 {
   s32 width;
   s32 height;
-  u32 *pixels;
+  s32 stride;
+  void *memory;
+
+  s32 glyphIndex;
 };
 
 struct Game_State
@@ -382,6 +386,8 @@ struct Game_State
   Loaded_sound bloop;
   Playing_sound *firstPlayingSound;
   Playing_sound *firstFreePlayingSound;
+
+  Loaded_bitmap glyphs[80];
   
   bool isInit;
 };

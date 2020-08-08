@@ -15,6 +15,8 @@ global Ball   balls[MAX_BALLS];
 #define ADDITIONAL_BALLS     (1 << 1) // 2
 #define INCREASE_PLAYER_SIZE (1 << 2) // 4 
 
+
+
 #define SET_FLAG(n,f)  ((n) |= (f))
 #define CHECK_FLAG(n,f)((n) & (f))
 #define CLEAR_FLAG(n,f)((n) &= ~(f))
@@ -57,15 +59,15 @@ loadGlyph(Memory_arena *arena, char glyph)
 
   stbtt_InitFont(&font, (u8*)loadedFont.memory, stbtt_GetFontOffsetForIndex((u8*)loadedFont.memory,0));
   
-  u8 *monoBitmap = stbtt_GetCodepointBitmap(&font, 0, stbtt_ScaleForPixelHeight(&font, 50.0f),
-					glyph,&width,&height,&xOffset,&yOffset);
-
+  u8 *monoBitmap = stbtt_GetCodepointBitmap(&font, 0, stbtt_ScaleForPixelHeight(&font, 30.0f),
+					    glyph,&width,&height,&xOffset,&yOffset);
+  
   Loaded_bitmap result = createEmptyBitmap(arena, width,height);
   result.glyphIndex = (u32)glyph;
     
   u8 *source = monoBitmap;
   u8 *destRow = (u8*)result.memory + (height - 1)*result.stride;
-
+  
   for(s32 y = 0; y < height; y++)
     {
       u32 *dest = (u32*)destRow;
@@ -105,7 +107,7 @@ simulatePowerups(Game_State *gameState, Input *input, Powerup_type type0)
       s32 flag = (1 << powerupIndex); 
       if((CHECK_FLAG(gameState->powerupsFlag, flag)))	
 	{
-	  Powerup_type type = (Powerup_type)flag;
+	  Powerup_type type = (Powerup_type)powerupIndex;
 	  switch(type)
 	    {
 	    case powerup_increasingPaddleSize:
@@ -130,6 +132,7 @@ simulatePowerups(Game_State *gameState, Input *input, Powerup_type type0)
 		else
 		  {
 		    CLEAR_FLAG(gameState->powerupsFlag, flag);
+		    gameState->pointsAddition = 20;
 		    gameState->doublePointsTime = 0;
 		  }
 	      }break;
@@ -483,7 +486,7 @@ drawSprite(Game_Framebuffer *framebuffer,Loaded_bitmap bitmap, v2 pos)
     }  
   
   u8 *destRow = (u8*)framebuffer->memory + (positionX * 4) + (positionY * framebuffer->stride);
-  u32 *sourceRow =  (u32*)bitmap.memory ;// + bitmap.width*(bitmap.height - 1);
+  u32 *sourceRow =  (u32*)bitmap.memory ;
   for(s32 y = positionY; y < maxPositionY; ++y)
     {
       u32 *dest   = (u32*)destRow;
@@ -521,6 +524,13 @@ drawText(Game_State *gameState, Game_Framebuffer *framebuffer,f32 scale, v2 pos,
     }
 }
 
+internal void
+drawScore(Game_State *gameState, Game_Framebuffer *framebuffer, v2 pos, char *srcText,s32 value)
+{
+  char dstText[100];
+  snprintf(dstText, sizeof(dstText),"%s:%d", srcText,value);
+  drawText(gameState, framebuffer, 25.0f, pos, dstText);
+}
 
 internal void 
 drawRectangle(Game_Framebuffer *framebuffer,f32 realX, f32 realY,f32 width , f32 height, v3 color)
@@ -573,7 +583,8 @@ gameSoundOutput(Game_sound_output *soundOutput,Game_Memory *gameMemory)
 internal void
 loadLevel(Game_State *gameState, u8 *level)
 {
-  nextBrick = 0;
+  gameState->currentLevel.score = 10;
+  nextBrick = 0;  
   gameState->currentLevel.map = level;
   for(u32 y = 0; y < MAX_LEVEL_HEIGHT; y++)
     {
@@ -682,12 +693,14 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       gameState->powerupHeight = 25.0f;
       
       gameState->currentLevel.map = firstMap;
+
+      gameState->pointsAddition = 20;
       
       loadLevel(gameState, gameState->currentLevel.map);
       
       u32 symbolIndex = 0;
       // NOTE(shvayko): load letters
-      for(u32 symbol = 'A'; symbol < 'z'; symbol++)
+      for(u32 symbol = 'A'; symbol < 'z' + 1; symbol++)
       {
 	gameState->glyphs[symbolIndex++] = loadGlyph(&gameState->levelArena, (char)symbol);
       }
@@ -837,7 +850,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	      v2 ballToBrick = ballPosCenter - brickPosCenter;
 	      ballToBrick    = normalizeVector(ballToBrick);
 	      v2 brickFacing = v2(0.0f, 1.0f);
-	  
+	      
 	      f64 value = dotProduct(ballToBrick, brickFacing);
 	      // NOTE(shvayko): those numbers relative to the brick's center(bottom side is starting point of caclulatuin
 	      f64 angle = acos(value);
@@ -860,7 +873,8 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		{
 		  gameState->currentLevel.powerups[gameState->nextPowerup] = addPowerup(gameState,brick->pos);
 		}
-	  	  
+	      gameState->currentLevel.score += gameState->pointsAddition;
+	      
 	      brick->destroyed = true;
 	      break;
 	    }
@@ -909,25 +923,35 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	    {
 	    case powerup_increasingPaddleSize:
 	      {
-		gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, INCREASE_PLAYER_SIZE);
-		player.size.x += 20.0f;
+		if(!(CHECK_FLAG(gameState->powerupsFlag, INCREASE_PLAYER_SIZE)))
+		  {
+		    gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, INCREASE_PLAYER_SIZE);
+		    player.size.x += 20.0f;
+		  }
 		gameState->increasingPaddleSizeTime += 7.0f;  
 	      }break;
 	    case powerup_doublePoints:
 	      {
-		// TODO(shvayko): create rendering fonts first!
-		gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, DOUBLE_POINTS);
+		if(!(CHECK_FLAG(gameState->powerupsFlag, DOUBLE_POINTS)))
+		  {
+		    gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, DOUBLE_POINTS);
+		    gameState->pointsAddition = 40;
+		  }
 		gameState->doublePointsTime += 7.0f;
 	      }break;
 	    case powerup_additinonalBalls:
 	      {
-		gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, ADDITIONAL_BALLS);
-		v2 firstAdditionalBallPos = v2(player.pos.x + player.size.x / 2,player.pos.y - 30.0f);
-		balls[1] = addNewBall(firstAdditionalBallPos,
-				      v2(-200.0f,200.0f));
-		v2 secondAdditionalBallPos = v2(player.pos.x + player.size.x / 2,player.pos.y - 30.0f);
-		balls[2] = addNewBall(secondAdditionalBallPos,
-				      v2(200.0f, 200.0f));		
+		if(!(CHECK_FLAG(gameState->powerupsFlag, ADDITIONAL_BALLS)))
+		  {
+		    gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, ADDITIONAL_BALLS);	    
+		    v2 firstAdditionalBallPos = v2(player.pos.x + player.size.x / 2,player.pos.y - 30.0f);
+		    // NOTE(shvayko): When I adding balls I have already set them to "active" state
+		    balls[1] = addNewBall(firstAdditionalBallPos,
+					  v2(-200.0f,200.0f));
+		    v2 secondAdditionalBallPos = v2(player.pos.x + player.size.x / 2,player.pos.y - 30.0f);
+		    balls[2] = addNewBall(secondAdditionalBallPos,
+					  v2(200.0f, 200.0f));		 
+		  }		
 		gameState->additionalBallsTime += 7.0f;
 	      }break;
 	    default :
@@ -942,7 +966,12 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 
   // NOTE(shvayko): simulation powerups
   simulatePowerups(gameState,input, powerup_increasingPaddleSize);
-  
+  // NOTE(shvayo): debugging time remaining for powerups
+#if DEBUG
+  drawScore(gameState,framebuffer, v2(20.0f,600.0f), "increasingSize",(s32)gameState->increasingPaddleSizeTime);
+  drawScore(gameState,framebuffer, v2(20.0f,650.0f),"doublePoints",(s32)gameState->doublePointsTime);
+  drawScore(gameState,framebuffer, v2(20.0f,700.0f),"additionalBalls",(s32)gameState->additionalBallsTime);
+#endif
   // NOTE(shvayko): rendering all active bricks in game
   for(u32 brickIndex = 0; brickIndex  < gameState->currentLevel.bricksCount; brickIndex++)
     {
@@ -958,7 +987,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
     }   
   
   // NOTE(shvayko): test load level
-#if 0
+#if DEBUG
   if(input->controller.buttonArrowLeft.isDown)
     {
       loadLevel(gameState, firstMap);
@@ -977,9 +1006,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		    gameState->ballWidth ,gameState->ballHeight,
 		    v3(255.0f,0.0f,0.0f));
     }
-  // NOTE(shvayko): testing font rendering
-  drawText(gameState, framebuffer, 100.0f, v2(500.0f,500.0f),"Roman");
-  drawText(gameState, framebuffer, 50.0f, v2(200.0f,200.0f),"0123456789"); 
+  drawScore(gameState,framebuffer,v2(0.0f,30.0f),"Score",gameState->currentLevel.score);
   drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
 }
 
