@@ -49,7 +49,7 @@ struct Keyboard
   union
   {
     struct
-    {
+    {     
       Button_status buttonUp;
       Button_status buttonDown;
       Button_status buttonLeft;
@@ -58,11 +58,13 @@ struct Keyboard
       Button_status buttonArrowRight;
       Button_status buttonArrowUp;
       Button_status buttonArrowDown;
-
+      Button_status buttonEnter;
+      Button_status buttonEscape;
+      
       Button_status leftMouseButton;
       Button_status rightMouseButton;
     };
-    Button_status buttons[10];
+    Button_status buttons[12];
   };  
 };
 struct Input
@@ -388,7 +390,8 @@ struct Game_State
   Loaded_bitmap ballBitmap;
   Loaded_bitmap increaseBitmap;
   Loaded_bitmap doublePointsBitmap;
-
+  Loaded_bitmap arrowBitmap;
+  
   Game_states currentGameState;
   
   s32 pointsAddition;

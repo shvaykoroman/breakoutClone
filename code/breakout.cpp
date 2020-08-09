@@ -571,16 +571,53 @@ struct Menu_item
 internal void
 menu(Game_State *gameState,Game_Framebuffer *framebuffer,Transient_state *transState, Input *input)
 {
+  //TODO(shvayko): play menu music
   f32 center = (framebuffer->width / 2.0f) - 50.0f;
+
+  local_persist s32 choice = 0;
+  
   Menu_item playButton = {v2(center, 440.0f),"Play",50.0f};
   drawText(framebuffer,transState, playButton.name, playButton.pos, playButton.size);
   
   Menu_item exitButton = {v2(center, 550.0f),"Exit",50.0f};
   drawText(framebuffer,transState, exitButton.name, exitButton.pos,exitButton.size);
-  
-  if(input->controller.buttonArrowRight.isDown && input->controller.buttonArrowRight.changed)
+
+  local_persist v2 arrowPos = v2(playButton.pos.x - 50.0f,playButton.pos.y);
+  if(input->controller.buttonUp.isDown && input->controller.buttonUp.changed)
     {
-      gameState->currentGameState = (Game_states)((gameState->currentGameState + 1) % gameState_count);
+      if(choice > 0) choice--;
+      arrowPos = v2(playButton.pos.x - 50.0f,playButton.pos.y);
+    }
+  if(input->controller.buttonDown.isDown && input->controller.buttonDown.changed)
+    {
+      if(choice < 1) choice++;
+      arrowPos = v2(playButton.pos.x - 50.0f,playButton.pos.y + 100.0f);
+    }
+  // TODO(shvayko): draw arrow!
+  drawSprite(framebuffer, gameState->arrowBitmap, v2(arrowPos.x,arrowPos.y));
+  
+  if(input->controller.buttonEnter.isDown && input->controller.buttonEnter.changed)
+    {
+      switch(choice)
+	{
+	case 0:
+	  {
+	    gameState->currentGameState = gameState_gameplay;
+	  }break;
+	case 1:
+	  {
+	    gGameIsRunning = false;
+	  }break;
+	default:
+	  {
+	    invalidCodePath;
+	  }break;
+	}
+    }
+  
+  if(input->controller.buttonEscape.isDown && input->controller.buttonEscape.changed)
+    {
+      gameState->currentGameState = gameState_gameplay;
     }
 }
 
@@ -696,6 +733,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       gameState->ballBitmap = loadBitmap("ball.bmp");
       gameState->increaseBitmap = loadBitmap("increase.bmp");
       gameState->doublePointsBitmap = loadBitmap("points.bmp");
+      gameState->arrowBitmap = loadBitmap("arrow.bmp");
       
       gameState->brickWidth  = 64.0f;
       gameState->brickHeight = 21.0f;
@@ -972,7 +1010,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	// NOTE(shvayko): simulation powerups
 	simulatePowerups(gameState,input, powerup_increasingPaddleSize);
 	// NOTE(shvayo): debugging time remaining for powerups
-#if 1
+#if DEBUG
 	drawScore(transState,framebuffer, v2(20.0f,600.0f),
 		  "increasingSize",(s32)gameState->increasingPaddleSizeTime);
 	drawScore(transState,framebuffer, v2(20.0f,650.0f),
@@ -995,6 +1033,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	  }   
   
 	// NOTE(shvayko): test load level
+#if DEBUG
 #if 0
 	if(input->controller.buttonArrowLeft.isDown)
 	  {
@@ -1006,7 +1045,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	    loadLevel(gameState, secondMap);
 	  }
 #endif
-  
+#endif	
 	for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
 	  {
 	    if(!(balls[ballIndex].isActive)) continue;
@@ -1021,7 +1060,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	
 	drawScore(transState,framebuffer,v2(0.0f,230.0f), "Y", input->mouseY);	
 #endif
-	if(input->controller.buttonArrowRight.isDown && input->controller.buttonArrowRight.changed)
+	if(input->controller.buttonEscape.isDown && input->controller.buttonEscape.changed)
 	  {
 	    gameState->currentGameState = (Game_states)((gameState->currentGameState + 1) % gameState_count);
 	  }

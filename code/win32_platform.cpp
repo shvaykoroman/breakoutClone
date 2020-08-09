@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <Dsound.h>
 #include "breakout.h"
+bool gGameIsRunning;
 #include "breakout.cpp"
 #include "win32_platform.h"
 #define WINDOW_CLASS_NAME "gameClassName"
@@ -9,8 +10,6 @@
 #define WINDOW_WIDTH      1280
 #define WINDOW_HEIGHT     980
 
-
-global bool gGameIsRunning;
 global Backbuffer gBackbuffer;
 global LPDIRECTSOUNDBUFFER gSecondaryBuffer;
 global HWND gWindowHandle;
@@ -347,6 +346,17 @@ keyboardMessagesProccessing(Keyboard *input)
 		      input->buttonArrowUp.isDown = isDown;
 		      input->buttonArrowUp.changed = isDown != wasDown;
 		    }break;
+		  case VK_RETURN:
+		    {
+		      input->buttonEnter.isDown = isDown;
+		      input->buttonEnter.changed = isDown != wasDown;
+		    }break;
+		  case VK_ESCAPE:
+		    {
+		      input->buttonEscape.isDown = isDown;
+		      input->buttonEscape.changed = isDown != wasDown;
+		    }break;
+		    
 #if DEBUG
 		  case 'P':
 		    {
