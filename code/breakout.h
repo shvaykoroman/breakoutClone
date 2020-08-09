@@ -38,7 +38,7 @@ struct Game_Framebuffer
   void *memory;
 };
 
-struct Button_Status
+struct Button_status
 {
   bool isDown;
   bool changed;
@@ -50,21 +50,25 @@ struct Keyboard
   {
     struct
     {
-      Button_Status buttonUp;
-      Button_Status buttonDown;
-      Button_Status buttonLeft;
-      Button_Status buttonRight;
-      Button_Status buttonArrowLeft;
-      Button_Status buttonArrowRight;
-      Button_Status buttonArrowUp;
-      Button_Status buttonArrowDown;
-      
+      Button_status buttonUp;
+      Button_status buttonDown;
+      Button_status buttonLeft;
+      Button_status buttonRight;
+      Button_status buttonArrowLeft;
+      Button_status buttonArrowRight;
+      Button_status buttonArrowUp;
+      Button_status buttonArrowDown;
+
+      Button_status leftMouseButton;
+      Button_status rightMouseButton;
     };
-    Button_Status buttons[8];
+    Button_status buttons[10];
   };  
 };
 struct Input
 {
+  s32 mouseX, mouseY;
+  
   f32 dtForFrame;
   Keyboard controller;
 };
@@ -355,6 +359,14 @@ struct Loaded_bitmap
   void *memory;
 };
 
+enum Game_states
+  {
+   gameState_menu,
+   gameState_gameplay,
+
+   gameState_count
+  };
+
 struct Game_State
 {
   Memory_arena levelArena;
@@ -376,6 +388,8 @@ struct Game_State
   Loaded_bitmap ballBitmap;
   Loaded_bitmap increaseBitmap;
   Loaded_bitmap doublePointsBitmap;
+
+  Game_states currentGameState;
   
   s32 pointsAddition;
   

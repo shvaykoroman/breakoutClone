@@ -15,6 +15,17 @@ global Backbuffer gBackbuffer;
 global LPDIRECTSOUNDBUFFER gSecondaryBuffer;
 global HWND gWindowHandle;
 global bool globalPause;
+
+
+void
+freeFile(File_content *fileContent)
+{
+  if(fileContent->memory)
+    {
+      VirtualFree(fileContent->memory,0, MEM_RELEASE);
+    }
+}
+
 File_content
 readFile(char *filename)
 {
@@ -35,8 +46,8 @@ readFile(char *filename)
 	  // NOTE(shvayko): file read success
 	}
       else
-	{
-	  VirtualFree(result.memory, 0, MEM_RELEASE);
+	{	  
+	  VirtualFree(result.memory,0, MEM_RELEASE);
 	}
     }
   else
@@ -256,8 +267,26 @@ keyboardMessagesProccessing(Keyboard *input)
   while(PeekMessageA(&msg,0,0,0,PM_REMOVE))
     {
       switch(msg.message)
-	{
-	  
+	{	  
+	case WM_LBUTTONUP:
+	case WM_LBUTTONDOWN:
+	  {
+	    if(msg.wParam == MK_RBUTTON)
+	      {
+		bool isDown  =  (msg.lParam & (1 << 31)) == 0;
+		bool wasDown =  (msg.lParam & (1 << 30)) != 0;;
+		input->leftMouseButton.isDown = isDown;
+		input->leftMouseButton.changed = isDown != wasDown;
+	      }
+	  }break;
+	case WM_RBUTTONUP: 
+	case WM_RBUTTONDOWN:
+	  {
+	    bool isDown  =  (msg.lParam & (1 << 31)) == 0;
+	    bool wasDown =  (msg.lParam & (1 << 30)) != 0;;
+	    input->rightMouseButton.isDown = isDown;
+	    input->rightMouseButton.changed = isDown != wasDown;
+	  }break;
 	case WM_SYSKEYDOWN:
 	case WM_KEYUP:	  
 	case WM_KEYDOWN:
@@ -271,34 +300,42 @@ keyboardMessagesProccessing(Keyboard *input)
 		  case 'W':
 		    {
 		      input->buttonUp.isDown = isDown;
+		      input->buttonUp.changed = isDown != wasDown;
 		    }break;
 		  case 'A':
 		    {
 		      input->buttonLeft.isDown = isDown;
+		      input->buttonLeft.changed = isDown != wasDown;
 		    }break;
 		  case 'S':
 		    {
 		      input->buttonDown.isDown  = isDown;
+		      input->buttonDown.changed = isDown != wasDown;
 		    }break;
 		  case 'D':
 		    {
 		      input->buttonRight.isDown = isDown;
+		      input->buttonRight.changed = isDown != wasDown;
 		    }break;
 		  case VK_LEFT:
 		    {
 		      input->buttonArrowLeft.isDown = isDown;
+		      input->buttonArrowLeft.changed = isDown != wasDown;
 		    }break;
 		  case VK_RIGHT:
 		    {
 		      input->buttonArrowRight.isDown = isDown;
+		      input->buttonArrowRight.changed = isDown != wasDown;
 		    }break;
 		  case VK_DOWN:
 		    {
 		      input->buttonArrowDown.isDown = isDown;
+		      input->buttonArrowDown.changed = isDown != wasDown;
 		    }break;
 		  case VK_UP:
 		    {
 		      input->buttonArrowUp.isDown = isDown;
+		      input->buttonArrowUp.changed = isDown != wasDown;
 		    }break;
 #if DEBUG
 		  case 'P':
@@ -308,7 +345,7 @@ keyboardMessagesProccessing(Keyboard *input)
 #endif
 		  default:
 		    {
-		  
+		      
 		    }break;
 		  }
 	      }
@@ -539,15 +576,6 @@ int WinMain(HINSTANCE hInstance,
   windowClass.hCursor       = LoadCursorA(0, IDC_ARROW);
   windowClass.lpszClassName = WINDOW_CLASS_NAME;
 
-  /*
-    char *filename = __FILE__;  
-    File_content fileContent = readFile(filename);
-
-    if(fileContent.memory)
-    {
-    VirtualFree(fileContent.memory,0, MEM_RELEASE);
-    }
-  */
   
   if(RegisterClassA(&windowClass))
     {
@@ -625,6 +653,12 @@ int WinMain(HINSTANCE hInstance,
 	  Input *oldInput = &input[1];	  
 	  while(gGameIsRunning)	    
 	    {
+	      POINT mousePos;
+	      GetCursorPos(&mousePos);
+	      ScreenToClient(window, &mousePos);
+	      newInput->mouseX = mousePos.x;
+	      newInput->mouseY = mousePos.y;	      
+	      
 	      newInput->dtForFrame = targetSecondsPerFrame;
 	      Keyboard *oldKeyboardInput = &oldInput->controller;
 	      Keyboard *newKeyboardInput = &newInput->controller;

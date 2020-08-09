@@ -260,6 +260,9 @@ createOpenglContext(HDC deviceContext,HWND window)
 }
 #endif
 
+global s32 mouseX;
+global s32 mouseY;
+
 internal void
 keyboardMessagesProccessing(Keyboard *input)  
 {
@@ -269,6 +272,31 @@ keyboardMessagesProccessing(Keyboard *input)
       switch(msg.message)
 	{
 	  
+	case WM_LBUTTONUP:
+	case WM_LBUTTONDOWN:
+	  {
+	    bool isDown = false;
+	    if(msg.wParam & MK_LBUTTON)
+	      {
+		isDown = true;
+	      }
+	    u32 mask = 0x0000FFFF;
+	    mouseX = msg.lParam & (mask); 
+	    mouseY = (msg.lParam >> 16) & (mask);
+	    
+	    input->leftMouseButton.isDown = isDown;
+	  }break;
+	case WM_RBUTTONUP: 
+	case WM_RBUTTONDOWN:
+	  {
+	    bool isDown = false;
+	    
+	    if(msg.wParam & MK_RBUTTON)
+	      {	
+		isDown = true;
+	      }	    
+	    input->rightMouseButton.isDown = isDown;
+	  }break;
 	case WM_SYSKEYDOWN:
 	case WM_KEYUP:	  
 	case WM_KEYDOWN:
@@ -282,34 +310,42 @@ keyboardMessagesProccessing(Keyboard *input)
 		  case 'W':
 		    {
 		      input->buttonUp.isDown = isDown;
+		      input->buttonUp.changed = isDown != wasDown;
 		    }break;
 		  case 'A':
 		    {
 		      input->buttonLeft.isDown = isDown;
+		      input->buttonLeft.changed = isDown != wasDown;
 		    }break;
 		  case 'S':
 		    {
 		      input->buttonDown.isDown  = isDown;
+		      input->buttonDown.changed = isDown != wasDown;
 		    }break;
 		  case 'D':
 		    {
 		      input->buttonRight.isDown = isDown;
+		      input->buttonRight.changed = isDown != wasDown;
 		    }break;
 		  case VK_LEFT:
 		    {
 		      input->buttonArrowLeft.isDown = isDown;
+		      input->buttonArrowLeft.changed = isDown != wasDown;
 		    }break;
 		  case VK_RIGHT:
 		    {
 		      input->buttonArrowRight.isDown = isDown;
+		      input->buttonArrowRight.changed = isDown != wasDown;
 		    }break;
 		  case VK_DOWN:
 		    {
 		      input->buttonArrowDown.isDown = isDown;
+		      input->buttonArrowDown.changed = isDown != wasDown;
 		    }break;
 		  case VK_UP:
 		    {
 		      input->buttonArrowUp.isDown = isDown;
+		      input->buttonArrowUp.changed = isDown != wasDown;
 		    }break;
 #if DEBUG
 		  case 'P':
@@ -319,7 +355,7 @@ keyboardMessagesProccessing(Keyboard *input)
 #endif
 		  default:
 		    {
-		  
+		      
 		    }break;
 		  }
 	      }
@@ -627,6 +663,15 @@ int WinMain(HINSTANCE hInstance,
 	  Input *oldInput = &input[1];	  
 	  while(gGameIsRunning)	    
 	    {
+	      /*POINT mousePos;
+	      GetCursorPos(&mousePos);
+	      ScreenToClient(window, &mousePos);
+	      newInput->mouseX = mousePos.x;
+	      newInput->mouseY = mousePos.y;	      */
+
+	      newInput->mouseX = mouseX;
+	      newInput->mouseY = mouseY;	      
+	      
 	      newInput->dtForFrame = targetSecondsPerFrame;
 	      Keyboard *oldKeyboardInput = &oldInput->controller;
 	      Keyboard *newKeyboardInput = &newInput->controller;

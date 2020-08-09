@@ -2,6 +2,8 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
+// TODO(shvayko): Make some macros for the input. It will be more handy!
+
 #define DEBUG 1
 #define MAX_BALLS 3
 
@@ -14,8 +16,6 @@ global Ball   balls[MAX_BALLS];
 #define DOUBLE_POINTS        (1 << 0) // 1
 #define ADDITIONAL_BALLS     (1 << 1) // 2
 #define INCREASE_PLAYER_SIZE (1 << 2) // 4 
-
-
 
 #define SET_FLAG(n,f)  ((n) |= (f))
 #define CHECK_FLAG(n,f)((n) & (f))
@@ -561,6 +561,29 @@ drawRectangle(Game_Framebuffer *framebuffer,f32 realX, f32 realY,f32 width , f32
     }  
 }
 
+struct Menu_item
+{  
+  v2 pos;
+  char *name;  
+  f32 size;
+};
+
+internal void
+menu(Game_State *gameState,Game_Framebuffer *framebuffer,Transient_state *transState, Input *input)
+{
+  f32 center = (framebuffer->width / 2.0f) - 50.0f;
+  Menu_item playButton = {v2(center, 440.0f),"Play",50.0f};
+  drawText(framebuffer,transState, playButton.name, playButton.pos, playButton.size);
+  
+  Menu_item exitButton = {v2(center, 550.0f),"Exit",50.0f};
+  drawText(framebuffer,transState, exitButton.name, exitButton.pos,exitButton.size);
+  
+  if(input->controller.buttonArrowRight.isDown && input->controller.buttonArrowRight.changed)
+    {
+      gameState->currentGameState = (Game_states)((gameState->currentGameState + 1) % gameState_count);
+    }
+}
+
 #define MAX_LEVEL_HEIGHT   10
 #define MAX_LEVEL_WIDTH    20
 
@@ -625,7 +648,6 @@ void
 gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *gameMemory)
 {
   clearBackbuffer(framebuffer);
-  
   u8 levelMap2[MAX_LEVEL_HEIGHT][MAX_LEVEL_WIDTH] =
     {
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -642,7 +664,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 
   u8 *firstMap = (u8*)levelMap2;
 
-    u8 levelMap1[MAX_LEVEL_HEIGHT][MAX_LEVEL_WIDTH] =
+  u8 levelMap1[MAX_LEVEL_HEIGHT][MAX_LEVEL_WIDTH] =
     {
      {2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2},
      {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
@@ -686,19 +708,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 
       gameState->pointsAddition = 20;
       
-      loadLevel(gameState, gameState->currentLevel.map);
-      
-      u32 symbolIndex = 0;
-      // NOTE(shvayko): load letters
-      for(u32 symbol = 'A'; symbol < 'z' + 1; symbol++)
-      {
-	//gameState->glyphs[symbolIndex++] = loadGlyph(&gameState->levelArena, (char)symbol);
-      }
-      //NOTE(shvayko): load numbers
-      for(u32 symbol = '0'; symbol < ';'; symbol++)
-	{
-	  //gameState->glyphs[symbolIndex++] = loadGlyph(&gameState->levelArena, (char)symbol);
-	}
+      loadLevel(gameState, gameState->currentLevel.map);      
       
       player.pos.x = framebuffer->width / 2.0f;
       player.pos.y = framebuffer->height - 20.0f;
@@ -709,299 +719,318 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       v2 ballPos = v2(ballStartingPositionX,ballStartingPositionY);
       v2 up = v2(0.0f,   -200.0f);            
 
-      balls[0] = addNewBall(ballPos, up);
+      balls[0] = addNewBall(ballPos, up); // NOTE(shvayko): first ball
+
+      gameState->currentGameState = gameState_menu;
       
       gameState->isInit = true;
-    }   
-  
+    }
   assert(sizeof(Transient_state) < gameMemory->transientStorageSize);
   Transient_state *transState = (Transient_state*)gameMemory->transientStorage;
   if(!transState->isInit)
-  {
-    initArena(&transState->transArena, gameMemory->transientStorageSize - sizeof(Transient_state),
-	      (u8*)gameMemory->transientStorage + sizeof(Transient_state));
-    transState->isInit = true;
-  }
-  
+    {
+      initArena(&transState->transArena, gameMemory->transientStorageSize - sizeof(Transient_state),
+		(u8*)gameMemory->transientStorage + sizeof(Transient_state));
+      transState->isInit = true;
+    }
+  switch(gameState->currentGameState)
+    {
+    case gameState_gameplay:
+      {
 #if DEBUG
-  if(input->controller.buttonArrowLeft.isDown)
-    {
-      balls[0].pos.x++;
-      balls[0].velocity = v2(-200.0f,0.0f);
-    }
-  if(input->controller.buttonArrowRight.isDown)
-    {
-      balls[0].pos.x--;
-      balls[0].velocity = v2(200.0f,0.0f);
-    }
-  if(input->controller.buttonArrowUp.isDown)
-    {
-      balls[0].pos.y--;
-      balls[0].velocity = v2(0.0f,-200.0f);
-    }
-  if(input->controller.buttonArrowDown.isDown)
-    {
-      balls[0].pos.y++;
-      balls[0].velocity = v2(0.0f,200.0f);
-    }
+	if(input->controller.buttonArrowLeft.isDown)
+	  {
+	    balls[0].pos.x++;
+	    balls[0].velocity = v2(-200.0f,0.0f);
+	  }
+	if(input->controller.buttonArrowRight.isDown)
+	  {
+	    balls[0].pos.x--;
+	    balls[0].velocity = v2(200.0f,0.0f);
+	  }
+	if(input->controller.buttonArrowUp.isDown)
+	  {
+	    balls[0].pos.y--;
+	    balls[0].velocity = v2(0.0f,-200.0f);
+	  }
+	if(input->controller.buttonArrowDown.isDown)
+	  {
+	    balls[0].pos.y++;
+	    balls[0].velocity = v2(0.0f,200.0f);
+	  }
   
 #endif  
-  v2 ddPlayer = v2(0.0f,0.0f);
-  if(input->controller.buttonRight.isDown)
-    {
-      ddPlayer.x = 1;
-    }
-  if(input->controller.buttonLeft.isDown)
-    {
-      ddPlayer.x = -1;
-    }
-
-  ddPlayer = ddPlayer * 126.0f;
-  player.pos = player.pos + (ddPlayer * input->dtForFrame);  
-  
-  // NOTE(shvayko): collision with player paddle
-
-  for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
-    {
-      Ball *currentBall = balls + ballIndex;
-      if(!currentBall->isActive) continue; 
-      if(checkCollision(currentBall->pos.x, currentBall->pos.y,
-		        currentBall->pos.x + gameState->ballWidth, currentBall->pos.y + gameState->ballHeight,
-			player.pos.x, player.pos.y,
-			player.pos.x+player.size.x, player.pos.y + player.size.y))
-	{
-	  // TODO(shvayko): may be use here vector math?
-	  f32 centerPlayer = player.pos.x + (player.size.x / 2.0f);
-	  f32 distance = currentBall->pos.x - centerPlayer;
-	  f32 per = distance / (player.size.x / 2.0f);
-	  f32 strength = 16.0f;
-	  v2 oldVelocity = currentBall->velocity;
-
-	  currentBall->velocity.x = 20.0f * per * strength; 
-	  currentBall->velocity.y *= -1.0f; 
-	}
-    }
-  // NOTE(shvayko): Simulating balls movement
-  // TODO(shvayko): Create function for simulating the balls
-  for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
-    {        
-      Ball *currentBall = balls + ballIndex;
-      if(!currentBall->isActive) continue; 
-      if((currentBall->pos.x + gameState->ballWidth)  > framebuffer->width)
-	{
-	  currentBall->velocity.x *= -1;
-	}
-      if(currentBall->pos.x <= 0)
-	{
-	  currentBall->velocity.x *= -1;
-	}
-      if(currentBall->pos.y <= 0)
-	{
-	  currentBall->velocity.y *= -1;
-	}
-      if(currentBall->pos.y > framebuffer->height)
-	{
-	  currentBall->velocity.y *= -1;
-	}
-      currentBall->pos = currentBall->pos + (currentBall->velocity * input->dtForFrame);
-    }
-  
-  // NOTE(shvayko): check collision for every block
-  for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
-    {
-      Ball *currentBall = balls + ballIndex;
-      if(!currentBall->isActive) continue;
-      for(u32 brickIndex = 0; brickIndex < gameState->currentLevel.bricksCount; brickIndex++)
-	{
-	  assert(nextBrick < MAX_LEVEL_HEIGHT * MAX_LEVEL_WIDTH);
-	  Brick *brick = gameState->currentLevel.bricks+brickIndex;
-	  if(brick->destroyed) continue; 
-	  if(checkCollision(currentBall->pos.x, currentBall->pos.y,
-			    currentBall->pos.x + gameState->ballWidth,
-			    currentBall->pos.y + gameState->ballHeight,
-			    brick->pos.x, brick->pos.y,
-			    brick->pos.x + (gameState->brickWidth-1.0f),
-			    brick->pos.y+(gameState->brickHeight-1.0f)))
-	    {
-	      // NOTE(shvayko): collision sound for brick-ball
-	      playSound(gameState, gameState->bloop);	  
-	  
-	      f32 ballPosCenterX = currentBall->pos.x + (gameState->ballWidth  / 2.0f);
-	      f32 ballPosCenterY = currentBall->pos.y + (gameState->ballHeight / 2.0f);
-	  
-	      v2 ballPosCenter  = v2(ballPosCenterX, ballPosCenterY);
-
-	      f32 brickPosCenterX = brick->pos.x + (gameState->brickWidth / 2.0f);
-	      f32 brickPosCenterY = brick->pos.y + (gameState->brickHeight / 2.0f);
-
-	      // TODO(shvayko): collision detection still pretty bugy! fix that!
-	      v2 brickPosCenter = v2(brickPosCenterX, brickPosCenterY);
-	      
-	      v2 ballToBrick = ballPosCenter - brickPosCenter;
-	      ballToBrick    = normalizeVector(ballToBrick);
-	      v2 brickFacing = v2(0.0f, 1.0f);
-	      
-	      f64 value = dotProduct(ballToBrick, brickFacing);
-	      // NOTE(shvayko): those numbers relative to the brick's center(bottom side is starting point of caclulatuin
-	      f64 angle = acos(value);
-	      if(1.19421 > angle) // NOTE(shvayko): bottom collision
-		{
-		  currentBall->velocity.y *= -1.0f;
-		}
-	      else if((1.19421 <= angle) && (angle <= 1.98769)) // NOTE(shvayko): left/right collision
-		{
-		  currentBall->velocity.x *= -1.0f;
-		}
-	      else if(angle > 1.98769) // NOTE(shvayko): up collision
-		{
-		  currentBall->velocity.y *= -1.0f;	    
-		}
-	  
-	      // NOTE(shvayko): add new powerup to the game
-	  
-	      if(randomChoice(2))
-		{
-		  gameState->currentLevel.powerups[gameState->nextPowerup] = addPowerup(gameState,brick->pos);
-		}
-	      gameState->currentLevel.score += gameState->pointsAddition;
-	      
-	      brick->destroyed = true;
-	      break;
-	    }
-	}
-    }
-  
-  // NOTE(shvayko): render all powerups
-  for(u32 powerupIndex = 0; powerupIndex < gameState->nextPowerup; powerupIndex++)
-    {
-      Powerup *powerup = gameState->currentLevel.powerups + powerupIndex;
-      if(powerup->taken) continue; 
-      powerup->startPos.y += 128 * input->dtForFrame;
-
-      Loaded_bitmap currentPowerupBitmap = {};
-      switch(powerup->type)
-	{
-	case powerup_increasingPaddleSize:
+	v2 ddPlayer = v2(0.0f,0.0f);
+	if(input->controller.buttonRight.isDown)
 	  {
-	    currentPowerupBitmap = gameState->increaseBitmap;
-	  }break;
-	case powerup_doublePoints:
-	  {
-	    currentPowerupBitmap = gameState->doublePointsBitmap;
-	  }break;
-	case powerup_additinonalBalls:
-	  {
-	    currentPowerupBitmap = gameState->ballBitmap;
-	  }break;
-	default:
-	  {
-	    invalidCodePath;
+	    ddPlayer.x = 1;
 	  }
-	}
+	if(input->controller.buttonLeft.isDown)
+	  {
+	    ddPlayer.x = -1;
+	  }
 
-      drawSprite(framebuffer, currentPowerupBitmap, powerup->startPos);
-      
-      if(checkCollision(powerup->startPos.x, powerup->startPos.y,
-			powerup->startPos.x + gameState->powerupWidth,
-			powerup->startPos.y + gameState->powerupHeight,
-			player.pos.x, player.pos.y,
-			player.pos.x+player.size.x, player.pos.y + player.size.y))
-	{
-	  // NOTE(shvayko): Activation powerup
-	  // NOTE(shvayko): All time in seconds.
-	  // TODO(shvayko): add bad powerups!
-	  switch(powerup->type)
-	    {
-	    case powerup_increasingPaddleSize:
+	ddPlayer = ddPlayer * 126.0f;
+	player.pos = player.pos + (ddPlayer * input->dtForFrame);  
+  
+	// NOTE(shvayko): collision with player paddle
+
+	for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
+	  {
+	    Ball *currentBall = balls + ballIndex;
+	    if(!currentBall->isActive) continue; 
+	    if(checkCollision(currentBall->pos.x, currentBall->pos.y,
+			      currentBall->pos.x + gameState->ballWidth, currentBall->pos.y + gameState->ballHeight,
+			      player.pos.x, player.pos.y,
+			      player.pos.x+player.size.x, player.pos.y + player.size.y))
 	      {
-		if(!(CHECK_FLAG(gameState->powerupsFlag, INCREASE_PLAYER_SIZE)))
-		  {
-		    gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, INCREASE_PLAYER_SIZE);
-		    player.size.x += 20.0f;
-		  }
-		gameState->increasingPaddleSizeTime += 7.0f;  
-	      }break;
-	    case powerup_doublePoints:
-	      {
-		if(!(CHECK_FLAG(gameState->powerupsFlag, DOUBLE_POINTS)))
-		  {
-		    gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, DOUBLE_POINTS);
-		    gameState->pointsAddition = 40;
-		  }
-		gameState->doublePointsTime += 7.0f;
-	      }break;
-	    case powerup_additinonalBalls:
-	      {
-		if(!(CHECK_FLAG(gameState->powerupsFlag, ADDITIONAL_BALLS)))
-		  {
-		    gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, ADDITIONAL_BALLS);	    
-		    v2 firstAdditionalBallPos = v2(player.pos.x + player.size.x / 2,player.pos.y - 30.0f);
-		    // NOTE(shvayko): When I adding balls I have already set them to "active" state
-		    balls[1] = addNewBall(firstAdditionalBallPos,
-					  v2(-200.0f,200.0f));
-		    v2 secondAdditionalBallPos = v2(player.pos.x + player.size.x / 2,player.pos.y - 30.0f);
-		    balls[2] = addNewBall(secondAdditionalBallPos,
-					  v2(200.0f, 200.0f));		 
-		  }		
-		gameState->additionalBallsTime += 7.0f;
-	      }break;
-	    default :
-	      {
-		invalidCodePath;
+		// TODO(shvayko): may be use here vector math?
+		f32 centerPlayer = player.pos.x + (player.size.x / 2.0f);
+		f32 distance = currentBall->pos.x - centerPlayer;
+		f32 per = distance / (player.size.x / 2.0f);
+		f32 strength = 16.0f;
+		v2 oldVelocity = currentBall->velocity;
+
+		currentBall->velocity.x = 20.0f * per * strength; 
+		currentBall->velocity.y *= -1.0f; 
 	      }
-	    }
+	  }
+	// NOTE(shvayko): Simulating balls movement
+	// TODO(shvayko): Create function for simulating the balls
+	for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
+	  {        
+	    Ball *currentBall = balls + ballIndex;
+	    if(!currentBall->isActive) continue; 
+	    if((currentBall->pos.x + gameState->ballWidth)  > framebuffer->width)
+	      {
+		currentBall->velocity.x *= -1;
+	      }
+	    if(currentBall->pos.x <= 0)
+	      {
+		currentBall->velocity.x *= -1;
+	      }
+	    if(currentBall->pos.y <= 0)
+	      {
+		currentBall->velocity.y *= -1;
+	      }
+	    if(currentBall->pos.y > framebuffer->height)
+	      {
+		currentBall->velocity.y *= -1;
+	      }
+	    currentBall->pos = currentBall->pos + (currentBall->velocity * input->dtForFrame);
+	  }
+  
+	// NOTE(shvayko): check collision for every block
+	for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
+	  {
+	    Ball *currentBall = balls + ballIndex;
+	    if(!currentBall->isActive) continue;
+	    for(u32 brickIndex = 0; brickIndex < gameState->currentLevel.bricksCount; brickIndex++)
+	      {
+		assert(nextBrick < MAX_LEVEL_HEIGHT * MAX_LEVEL_WIDTH);
+		Brick *brick = gameState->currentLevel.bricks+brickIndex;
+		if(brick->destroyed) continue; 
+		if(checkCollision(currentBall->pos.x, currentBall->pos.y,
+				  currentBall->pos.x + gameState->ballWidth,
+				  currentBall->pos.y + gameState->ballHeight,
+				  brick->pos.x, brick->pos.y,
+				  brick->pos.x + (gameState->brickWidth-1.0f),
+				  brick->pos.y+(gameState->brickHeight-1.0f)))
+		  {
+		    // NOTE(shvayko): collision sound for brick-ball
+		    playSound(gameState, gameState->bloop);	  
 	  
-	  powerup->taken = true;
-	}      
-    }
+		    f32 ballPosCenterX = currentBall->pos.x + (gameState->ballWidth  / 2.0f);
+		    f32 ballPosCenterY = currentBall->pos.y + (gameState->ballHeight / 2.0f);
+	  
+		    v2 ballPosCenter  = v2(ballPosCenterX, ballPosCenterY);
 
-  // NOTE(shvayko): simulation powerups
-  simulatePowerups(gameState,input, powerup_increasingPaddleSize);
-  // NOTE(shvayo): debugging time remaining for powerups
-#if 1
-  drawScore(transState,framebuffer, v2(20.0f,600.0f),
-	    "increasingSize",(s32)gameState->increasingPaddleSizeTime);
-  drawScore(transState,framebuffer, v2(20.0f,650.0f),
-	    "doublePoints",(s32)gameState->doublePointsTime);
-  drawScore(transState,framebuffer, v2(20.0f,700.0f),
-	    "additionalBalls",(s32)gameState->additionalBallsTime);
-#endif
-  // NOTE(shvayko): rendering all active bricks in game
-  for(u32 brickIndex = 0; brickIndex  < gameState->currentLevel.bricksCount; brickIndex++)
-    {
-      Brick *brick = gameState->currentLevel.bricks+brickIndex; 
-      
-      if(!brick->destroyed)
-	{
-	  drawRectangle(framebuffer, brick->pos.x, brick->pos.y,
-			gameState->brickWidth-1.0f,gameState->brickHeight-1.0f,
-			brick->color);
+		    f32 brickPosCenterX = brick->pos.x + (gameState->brickWidth / 2.0f);
+		    f32 brickPosCenterY = brick->pos.y + (gameState->brickHeight / 2.0f);
+
+		    // TODO(shvayko): collision detection still pretty bugy! fix that!
+		    v2 brickPosCenter = v2(brickPosCenterX, brickPosCenterY);
+	      
+		    v2 ballToBrick = ballPosCenter - brickPosCenter;
+		    ballToBrick    = normalizeVector(ballToBrick);
+		    v2 brickFacing = v2(0.0f, 1.0f);
+	      
+		    f64 value = dotProduct(ballToBrick, brickFacing);
+		    // NOTE(shvayko): those numbers relative to the brick's center(bottom side is starting point of caclulatuin
+		    f64 angle = acos(value);
+		    if(1.19421 > angle) // NOTE(shvayko): bottom collision
+		      {
+			currentBall->velocity.y *= -1.0f;
+		      }
+		    else if((1.19421 <= angle) && (angle <= 1.98769)) // NOTE(shvayko): left/right collision
+		      {
+			currentBall->velocity.x *= -1.0f;
+		      }
+		    else if(angle > 1.98769) // NOTE(shvayko): up collision
+		      {
+			currentBall->velocity.y *= -1.0f;	    
+		      }
 	  
-	}
-    }   
+		    // NOTE(shvayko): add new powerup to the game
+	  
+		    if(randomChoice(2))
+		      {
+			gameState->currentLevel.powerups[gameState->nextPowerup] = addPowerup(gameState,brick->pos);
+		      }
+		    gameState->currentLevel.score += gameState->pointsAddition;
+	      
+		    brick->destroyed = true;
+		    break;
+		  }
+	      }
+	  }
   
-  // NOTE(shvayko): test load level
-#if DEBUG
-  if(input->controller.buttonArrowLeft.isDown)
-    {
-      loadLevel(gameState, firstMap);
-    }
+	// NOTE(shvayko): render all powerups
+	for(u32 powerupIndex = 0; powerupIndex < gameState->nextPowerup; powerupIndex++)
+	  {
+	    Powerup *powerup = gameState->currentLevel.powerups + powerupIndex;
+	    if(powerup->taken) continue; 
+	    powerup->startPos.y += 128 * input->dtForFrame;
+
+	    Loaded_bitmap currentPowerupBitmap = {};
+	    switch(powerup->type)
+	      {
+	      case powerup_increasingPaddleSize:
+		{
+		  currentPowerupBitmap = gameState->increaseBitmap;
+		}break;
+	      case powerup_doublePoints:
+		{
+		  currentPowerupBitmap = gameState->doublePointsBitmap;
+		}break;
+	      case powerup_additinonalBalls:
+		{
+		  currentPowerupBitmap = gameState->ballBitmap;
+		}break;
+	      default:
+		{
+		  invalidCodePath;
+		}
+	      }
+
+	    drawSprite(framebuffer, currentPowerupBitmap, powerup->startPos);
+      
+	    if(checkCollision(powerup->startPos.x, powerup->startPos.y,
+			      powerup->startPos.x + gameState->powerupWidth,
+			      powerup->startPos.y + gameState->powerupHeight,
+			      player.pos.x, player.pos.y,
+			      player.pos.x+player.size.x, player.pos.y + player.size.y))
+	      {
+		// NOTE(shvayko): Activation powerup
+		// NOTE(shvayko): All time in seconds.
+		// TODO(shvayko): add bad powerups!
+		switch(powerup->type)
+		  {
+		  case powerup_increasingPaddleSize:
+		    {
+		      if(!(CHECK_FLAG(gameState->powerupsFlag, INCREASE_PLAYER_SIZE)))
+			{
+			  gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, INCREASE_PLAYER_SIZE);
+			  player.size.x += 20.0f;
+			}
+		      gameState->increasingPaddleSizeTime += 7.0f;  
+		    }break;
+		  case powerup_doublePoints:
+		    {
+		      if(!(CHECK_FLAG(gameState->powerupsFlag, DOUBLE_POINTS)))
+			{
+			  gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, DOUBLE_POINTS);
+			  gameState->pointsAddition = 40;
+			}
+		      gameState->doublePointsTime += 7.0f;
+		    }break;
+		  case powerup_additinonalBalls:
+		    {
+		      if(!(CHECK_FLAG(gameState->powerupsFlag, ADDITIONAL_BALLS)))
+			{
+			  gameState->powerupsFlag = SET_FLAG(gameState->powerupsFlag, ADDITIONAL_BALLS);	    
+			  v2 firstAdditionalBallPos = v2(player.pos.x + player.size.x / 2,player.pos.y - 30.0f);
+			  // NOTE(shvayko): When I adding balls I have already set them to "active" state
+			  balls[1] = addNewBall(firstAdditionalBallPos,
+						v2(-200.0f,200.0f));
+			  v2 secondAdditionalBallPos = v2(player.pos.x + player.size.x / 2,player.pos.y - 30.0f);
+			  balls[2] = addNewBall(secondAdditionalBallPos,
+						v2(200.0f, 200.0f));		 
+			}		
+		      gameState->additionalBallsTime += 7.0f;
+		    }break;
+		  default :
+		    {
+		      invalidCodePath;
+		    }
+		  }
+	  
+		powerup->taken = true;
+	      }      
+	  }
+
+	// NOTE(shvayko): simulation powerups
+	simulatePowerups(gameState,input, powerup_increasingPaddleSize);
+	// NOTE(shvayo): debugging time remaining for powerups
+#if 1
+	drawScore(transState,framebuffer, v2(20.0f,600.0f),
+		  "increasingSize",(s32)gameState->increasingPaddleSizeTime);
+	drawScore(transState,framebuffer, v2(20.0f,650.0f),
+		  "doublePoints",(s32)gameState->doublePointsTime);
+	drawScore(transState,framebuffer, v2(20.0f,700.0f),
+		  "additionalBalls",(s32)gameState->additionalBallsTime);
+#endif
+	// NOTE(shvayko): rendering all active bricks in game
+	for(u32 brickIndex = 0; brickIndex  < gameState->currentLevel.bricksCount; brickIndex++)
+	  {
+	    Brick *brick = gameState->currentLevel.bricks+brickIndex; 
+      
+	    if(!brick->destroyed)
+	      {
+		drawRectangle(framebuffer, brick->pos.x, brick->pos.y,
+			      gameState->brickWidth-1.0f,gameState->brickHeight-1.0f,
+			      brick->color);
+	  
+	      }
+	  }   
   
-  if(input->controller.buttonArrowRight.isDown)
-    {
-      loadLevel(gameState, secondMap);
-    }
+	// NOTE(shvayko): test load level
+#if 0
+	if(input->controller.buttonArrowLeft.isDown)
+	  {
+	    loadLevel(gameState, firstMap);
+	  }
+  
+	if(input->controller.buttonArrowRight.isDown)
+	  {
+	    loadLevel(gameState, secondMap);
+	  }
 #endif
   
-  for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
-    {
-      if(!(balls[ballIndex].isActive)) continue;
-      drawRectangle(framebuffer, balls[ballIndex].pos.x, balls[ballIndex].pos.y,
-		    gameState->ballWidth ,gameState->ballHeight,
-		    v3(255.0f,0.0f,0.0f));
+	for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
+	  {
+	    if(!(balls[ballIndex].isActive)) continue;
+	    drawRectangle(framebuffer, balls[ballIndex].pos.x, balls[ballIndex].pos.y,
+			  gameState->ballWidth ,gameState->ballHeight,
+			  v3(255.0f,0.0f,0.0f));
+	  }
+	drawScore(transState,framebuffer,v2(0.0f,30.0f), "Score",gameState->currentLevel.score);
+	drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
+#if DEBUG
+	drawScore(transState,framebuffer,v2(0.0f,130.0f), "X", input->mouseX);
+	
+	drawScore(transState,framebuffer,v2(0.0f,230.0f), "Y", input->mouseY);	
+#endif
+	if(input->controller.buttonArrowRight.isDown && input->controller.buttonArrowRight.changed)
+	  {
+	    gameState->currentGameState = (Game_states)((gameState->currentGameState + 1) % gameState_count);
+	  }
+      }break;
+    case gameState_menu:
+      {
+	menu(gameState,framebuffer,transState,input);
+      }break;
     }
-  drawScore(transState,framebuffer,v2(0.0f,30.0f), "Score",gameState->currentLevel.score);
-  drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
 }
 
 
