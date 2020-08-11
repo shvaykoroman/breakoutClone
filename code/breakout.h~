@@ -1,4 +1,4 @@
-#include <stdint.h>
+ #include <stdint.h>
 
 #define PI 3.14159265359f
 
@@ -49,7 +49,7 @@ struct Keyboard
   union
   {
     struct
-    {
+    {     
       Button_status buttonUp;
       Button_status buttonDown;
       Button_status buttonLeft;
@@ -58,12 +58,13 @@ struct Keyboard
       Button_status buttonArrowRight;
       Button_status buttonArrowUp;
       Button_status buttonArrowDown;
-
-
+      Button_status buttonEnter;
+      Button_status buttonEscape;
+      
       Button_status leftMouseButton;
       Button_status rightMouseButton;
     };
-    Button_status buttons[10];
+    Button_status buttons[12];
   };  
 };
 struct Input
@@ -74,6 +75,19 @@ struct Input
   Keyboard controller;
 };
 
+struct Debug_cycle_counters
+{
+  u64 counter;
+  s32 hitCount;
+};
+
+enum
+{
+ debugCycleCounter_gameUpdateAndRender,
+
+ debugCycleCounter_count
+};
+
 struct Game_Memory
 {
   void *permanentStorage;
@@ -81,8 +95,14 @@ struct Game_Memory
 
   void *transientStorage;
   s64 transientStorageSize;
-  
+
+#if DEBUG
+  Debug_counters debugCounter[debugCycleCounter_count];
+#endif
 };
+
+#define BEGIN_TIME_BLOCK(ID)  u64 startCycleCount##ID = __rdtsc();
+#define END_TIME_BLOCK(ID) memory->debugCounter[debugCycleCounter_##ID] += __rdtsc() - startCycleCount##ID;
 
 typedef struct v2
 {  
@@ -389,7 +409,8 @@ struct Game_State
   Loaded_bitmap ballBitmap;
   Loaded_bitmap increaseBitmap;
   Loaded_bitmap doublePointsBitmap;
-
+  Loaded_bitmap arrowBitmap;
+  
   Game_states currentGameState;
   
   s32 pointsAddition;

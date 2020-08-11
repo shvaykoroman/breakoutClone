@@ -2,12 +2,12 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-// TODO(shvayko): Make some macros for the input. It will be more handy!
+#define BUTTON_IS_DOWN(BUTTON) (input->controller.BUTTON.isDown)
+#define BUTTON_PRESSED(BUTTON) (input->controller.BUTTON.isDown && input->controller.BUTTON.changed)
 
-#define DEBUG 1
 #define MAX_BALLS 3
 
-// TODO(shvayko)DELETE THIS FROM GLOBAL SCOPE! 
+// TODO(shvayko): Should it be in global scope?
 s32 nextBrick = 0;
 global Player player;
 global Ball   balls[MAX_BALLS];
@@ -514,17 +514,41 @@ drawText(Game_Framebuffer *framebuffer,Transient_state *transState, char *text, 
 }
 
 internal void
-drawScore(Transient_state *transState, Game_Framebuffer *framebuffer, v2 pos, char *srcText,s32 value)
+drawTextWithNum(Transient_state *transState, Game_Framebuffer *framebuffer, v2 pos,
+	  char *srcText, s64 value, f32 size)
 {
   char dstText[100];
-  f32 size = 30.0f;
-  snprintf(dstText, sizeof(dstText),"%s:%d", srcText,value);
+  snprintf(dstText, sizeof(dstText),"%s:%lld", srcText,value);
   drawText(framebuffer,transState, dstText, pos, size);
+}
+
+internal void
+handleDebugCycleCountersCounter(Transient_state *transState, Game_Framebuffer *framebuffer)
+{
+  f32 yOffset = 0.0f;
+  char *nameTable[] = {
+		       "gameUpdateAndRender",
+		       "checkCollision",
+		       "drawRectangle"
+  };
+
+  for(s32 counterIndex = 0; counterIndex < arrayCount(debugGlobalGameMemory->debugCounter); counterIndex++)
+    {
+      char **counterName = nameTable+counterIndex;
+      Debug_cycle_counters *cycleCounter = debugGlobalGameMemory->debugCounter + counterIndex;
+      yOffset += 50.0f;
+      drawTextWithNum(transState, framebuffer, v2(500.0f, 500.0f + yOffset), *counterName, cycleCounter->counter, 20);
+      yOffset += 50.0f;
+      drawTextWithNum(transState, framebuffer, v2(500.0f, 500.0f + yOffset), *counterName, cycleCounter->hitCount, 20);
+      cycleCounter->counter = 0;
+      cycleCounter->hitCount = 0;
+    }  
 }
 
 internal void 
 drawRectangle(Game_Framebuffer *framebuffer,f32 realX, f32 realY,f32 width , f32 height, v3 color)
 {
+  BEGIN_TIME_BLOCK(drawRectangle);
   s32 xMin = (s32)realX;
   s32 yMin = (s32)realY;
   s32 xMax = xMin + (s32)width;
@@ -558,7 +582,8 @@ drawRectangle(Game_Framebuffer *framebuffer,f32 realX, f32 realY,f32 width , f32
 	  *pixel++ = colorSrc;
 	}
       row += framebuffer->stride;
-    }  
+    }
+  END_TIME_BLOCK(drawRectangle);
 }
 
 struct Menu_item
@@ -583,12 +608,12 @@ menu(Game_State *gameState,Game_Framebuffer *framebuffer,Transient_state *transS
   drawText(framebuffer,transState, exitButton.name, exitButton.pos,exitButton.size);
 
   local_persist v2 arrowPos = v2(playButton.pos.x - 50.0f,playButton.pos.y);
-  if(input->controller.buttonUp.isDown && input->controller.buttonUp.changed)
+  if(BUTTON_PRESSED(buttonUp))
     {
       if(choice > 0) choice--;
       arrowPos = v2(playButton.pos.x - 50.0f,playButton.pos.y);
     }
-  if(input->controller.buttonDown.isDown && input->controller.buttonDown.changed)
+  if(BUTTON_PRESSED(buttonDown))
     {
       if(choice < 1) choice++;
       arrowPos = v2(playButton.pos.x - 50.0f,playButton.pos.y + 100.0f);
@@ -615,7 +640,7 @@ menu(Game_State *gameState,Game_Framebuffer *framebuffer,Transient_state *transS
 	}
     }
   
-  if(input->controller.buttonEscape.isDown && input->controller.buttonEscape.changed)
+  if(BUTTON_PRESSED(buttonEscape))
     {
       gameState->currentGameState = gameState_gameplay;
     }
@@ -681,10 +706,19 @@ playSound(Game_State *gameState, Loaded_sound sound)
   
   return playingSound;
 }
+
+#if DEBUG
+Game_Memory *debugGlobalGameMemory;
+#endif
 void
 gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *gameMemory)
 {
   clearBackbuffer(framebuffer);
+#if DEBUG
+  debugGlobalGameMemory = gameMemory;
+#endif
+  BEGIN_TIME_BLOCK(gameUpdateAndRender);
+  
   u8 levelMap2[MAX_LEVEL_HEIGHT][MAX_LEVEL_WIDTH] =
     {
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -723,7 +757,6 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
     {      
       initArena(&gameState->levelArena, gameMemory->permanentStorageSize - sizeof(*gameState),
 		(u8*)gameMemory->permanentStorage + sizeof(*gameState));                 
-
 
       gameState->powerupsFlag = 0x00000000;      
       
@@ -776,22 +809,22 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
     case gameState_gameplay:
       {
 #if DEBUG
-	if(input->controller.buttonArrowLeft.isDown)
+	if(BUTTON_IS_DOWN(buttonArrowLeft))
 	  {
 	    balls[0].pos.x++;
 	    balls[0].velocity = v2(-200.0f,0.0f);
 	  }
-	if(input->controller.buttonArrowRight.isDown)
+	if(BUTTON_IS_DOWN(buttonArrowRight))
 	  {
 	    balls[0].pos.x--;
 	    balls[0].velocity = v2(200.0f,0.0f);
 	  }
-	if(input->controller.buttonArrowUp.isDown)
+	if(BUTTON_IS_DOWN(buttonArrowUp))
 	  {
 	    balls[0].pos.y--;
 	    balls[0].velocity = v2(0.0f,-200.0f);
 	  }
-	if(input->controller.buttonArrowDown.isDown)
+	if(BUTTON_IS_DOWN(buttonArrowDown))
 	  {
 	    balls[0].pos.y++;
 	    balls[0].velocity = v2(0.0f,200.0f);
@@ -799,11 +832,11 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   
 #endif  
 	v2 ddPlayer = v2(0.0f,0.0f);
-	if(input->controller.buttonRight.isDown)
+	if(BUTTON_IS_DOWN(buttonRight))
 	  {
 	    ddPlayer.x = 1;
 	  }
-	if(input->controller.buttonLeft.isDown)
+	if(BUTTON_IS_DOWN(buttonLeft))
 	  {
 	    ddPlayer.x = -1;
 	  }
@@ -813,10 +846,12 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   
 	// NOTE(shvayko): collision with player paddle
 
+
+	BEGIN_TIME_BLOCK(checkCollision);
 	for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
 	  {
 	    Ball *currentBall = balls + ballIndex;
-	    if(!currentBall->isActive) continue; 
+	    if(!currentBall->isActive) continue;
 	    if(checkCollision(currentBall->pos.x, currentBall->pos.y,
 			      currentBall->pos.x + gameState->ballWidth, currentBall->pos.y + gameState->ballHeight,
 			      player.pos.x, player.pos.y,
@@ -857,7 +892,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	      }
 	    currentBall->pos = currentBall->pos + (currentBall->velocity * input->dtForFrame);
 	  }
-  
+	END_TIME_BLOCK(checkCollision);
 	// NOTE(shvayko): check collision for every block
 	for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
 	  {
@@ -1011,12 +1046,12 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	simulatePowerups(gameState,input, powerup_increasingPaddleSize);
 	// NOTE(shvayo): debugging time remaining for powerups
 #if DEBUG
-	drawScore(transState,framebuffer, v2(20.0f,600.0f),
-		  "increasingSize",(s32)gameState->increasingPaddleSizeTime);
-	drawScore(transState,framebuffer, v2(20.0f,650.0f),
-		  "doublePoints",(s32)gameState->doublePointsTime);
-	drawScore(transState,framebuffer, v2(20.0f,700.0f),
-		  "additionalBalls",(s32)gameState->additionalBallsTime);
+	drawTextWithNum(transState,framebuffer, v2(20.0f,600.0f),
+		  "increasingSize",(s32)gameState->increasingPaddleSizeTime,30.0f);
+	drawTextWithNum(transState,framebuffer, v2(20.0f,650.0f),
+		  "doublePoints",(s32)gameState->doublePointsTime,30.0f);
+	drawTextWithNum(transState,framebuffer, v2(20.0f,700.0f),
+		  "additionalBalls",(s32)gameState->additionalBallsTime,30.0f);
 #endif
 	// NOTE(shvayko): rendering all active bricks in game
 	for(u32 brickIndex = 0; brickIndex  < gameState->currentLevel.bricksCount; brickIndex++)
@@ -1053,12 +1088,14 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 			  gameState->ballWidth ,gameState->ballHeight,
 			  v3(255.0f,0.0f,0.0f));
 	  }
-	drawScore(transState,framebuffer,v2(0.0f,30.0f), "Score",gameState->currentLevel.score);
+        drawTextWithNum(transState,framebuffer,v2(0.0f,30.0f), "Score",gameState->currentLevel.score,30.0f);
 	drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
 #if DEBUG
-	drawScore(transState,framebuffer,v2(0.0f,130.0f), "X", input->mouseX);
+	drawTextWithNum(transState,framebuffer,v2(0.0f,130.0f), "X", input->mouseX,30.0f);
 	
-	drawScore(transState,framebuffer,v2(0.0f,230.0f), "Y", input->mouseY);	
+        drawTextWithNum(transState,framebuffer,v2(0.0f,230.0f), "Y", input->mouseY,30.0f);
+
+	handleDebugCycleCountersCounter(transState,framebuffer);
 #endif
 	if(input->controller.buttonEscape.isDown && input->controller.buttonEscape.changed)
 	  {
@@ -1070,6 +1107,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	menu(gameState,framebuffer,transState,input);
       }break;
     }
+  END_TIME_BLOCK(gameUpdateAndRender);
 }
 
 

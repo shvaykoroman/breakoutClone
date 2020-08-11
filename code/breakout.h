@@ -1,6 +1,7 @@
-#include <stdint.h>
+ #include <stdint.h>
 
 #define PI 3.14159265359f
+#define DEBUG 1
 
 #define global static 
 #define local_persist static
@@ -75,6 +76,21 @@ struct Input
   Keyboard controller;
 };
 
+struct Debug_cycle_counters
+{
+  u64 counter;
+  s32 hitCount;
+};
+
+enum
+{
+ debugCycleCounter_gameUpdateAndRender,
+ debugCycleCounter_checkCollision,
+ debugCycleCounter_drawRectangle,
+ 
+ debugCycleCounter_count
+};
+
 struct Game_Memory
 {
   void *permanentStorage;
@@ -82,8 +98,16 @@ struct Game_Memory
 
   void *transientStorage;
   s64 transientStorageSize;
-  
+
+#if DEBUG
+  Debug_cycle_counters debugCounter[debugCycleCounter_count];
+#endif
 };
+
+extern struct Game_Memory *debugGlobalGameMemory;
+
+#define BEGIN_TIME_BLOCK(ID)  u64 startCycleCount##ID = __rdtsc();
+#define END_TIME_BLOCK(ID) debugGlobalGameMemory->debugCounter[debugCycleCounter_##ID].counter += __rdtsc() - startCycleCount##ID;  debugGlobalGameMemory->debugCounter[debugCycleCounter_##ID].hitCount++; 
 
 typedef struct v2
 {  

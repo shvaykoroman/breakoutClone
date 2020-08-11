@@ -667,7 +667,8 @@ int WinMain(HINSTANCE hInstance,
 	  HDC deviceContext = GetDC(window);	  
 	  LARGE_INTEGER lastTime = getClockValue();
 	  LARGE_INTEGER flipWallClock = getClockValue();	  
-
+	  u64 startCycleCount = __rdtsc();
+	  
 	  Input input[2] = {};
 	  Input *newInput = &input[0];
 	  Input *oldInput = &input[1];	  
@@ -821,6 +822,8 @@ int WinMain(HINSTANCE hInstance,
 		  currentTime = getClockValue();
 		  delta = getDifferenceTime(currentTime,lastTime) / (f32)performanceFreq;	      	      
 		  Window_dim dim = getWindowDim(window);
+		  u64 endCycleCount = __rdtsc();
+		  u64 cycleCountDiff = endCycleCount - startCycleCount;
 #if 0
 #if DEBUG
 		  drawDebugSyncAudioDisplay(&gBackbuffer,&soundOutput, debugTimeMarkers, debugTimeMarkerIndex - 1,
@@ -842,9 +845,10 @@ int WinMain(HINSTANCE hInstance,
 		  s32 ms    = (s32)(delta * 1000.f);
 		  s32 FPS   = (s32)(1.f/delta);
 		  lastTime = currentTime;
+		  startCycleCount = endCycleCount;
 #if 1
 		  char textBuffer[255];
-		  wsprintfA(textBuffer, "ms: %d; fps: %d\n", ms, FPS);
+		  wsprintfA(textBuffer, "ms: %d; fps: %d cycles:%d\n", ms, FPS, cycleCountDiff);
 		  OutputDebugStringA(textBuffer);
 #endif
 		  debugTimeMarkerIndex++;
@@ -866,8 +870,7 @@ int WinMain(HINSTANCE hInstance,
   else
     {
       win32ErrorMessage(gWindowHandle, "Window Class not registred", WIN32_FATAL_ERROR);
-    }
-  
+    }  
   return 0;  
 }
 
