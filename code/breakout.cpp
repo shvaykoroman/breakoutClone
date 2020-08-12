@@ -1,3 +1,29 @@
+/*
+  TODO TODO TODO TODO
+  AUDIO:
+  Add ability to kill music at any time
+  Add more audio in game:
+                         for collision ball-brick
+			 for collision paddle-ball
+			 for collision ball-arena boundaries
+			 Add music to the main menu
+			 Add some tracks for the gameplay			 
+			 Add sound for the selecting menu items in main menu
+  Audio mixer optimization			 
+  ----------
+  GAMEPLAY:
+  Add powerups: 
+               decrease player size
+	       Strong ball
+	       Strong random bricks
+  Selecting level in main menu
+  Save game
+  Store player's record in main menu                   
+  ---------    
+  RENDERING:
+            Align text to the baseline
+ */
+
 #include <immintrin.h>
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -500,10 +526,9 @@ drawText(Game_Framebuffer *framebuffer,Transient_state *transState, char *text, 
 			 (alpha << 8) |
 			 (alpha << 0));
 	    }
-	  destRow -= result.stride;
-
-	  
+	  destRow -= result.stride;	  
 	}
+      
       pos.x += scaleX;
       drawSprite(framebuffer,result,pos);
       stbtt_FreeBitmap(monoBitmap, 0);      
@@ -525,6 +550,7 @@ drawTextWithNum(Transient_state *transState, Game_Framebuffer *framebuffer, v2 p
 internal void
 handleDebugCycleCountersCounter(Transient_state *transState, Game_Framebuffer *framebuffer)
 {
+  
   f32 yOffset = 0.0f;
   char *nameTable[] = {
 		       "gameUpdateAndRender",
@@ -537,9 +563,9 @@ handleDebugCycleCountersCounter(Transient_state *transState, Game_Framebuffer *f
       char **counterName = nameTable+counterIndex;
       Debug_cycle_counters *cycleCounter = debugGlobalGameMemory->debugCounter + counterIndex;
       yOffset += 50.0f;
-      drawTextWithNum(transState, framebuffer, v2(500.0f, 500.0f + yOffset), *counterName, cycleCounter->counter, 20);
+      drawTextWithNum(transState, framebuffer, v2(500.0f, 500.0f + yOffset), nameTable[counterIndex], cycleCounter->counter, 20);
       yOffset += 50.0f;
-      drawTextWithNum(transState, framebuffer, v2(500.0f, 500.0f + yOffset), *counterName, cycleCounter->hitCount, 20);
+      drawTextWithNum(transState, framebuffer, v2(500.0f, 500.0f + yOffset), nameTable[counterIndex], cycleCounter->hitCount, 20);
       cycleCounter->counter = 0;
       cycleCounter->hitCount = 0;
     }  
@@ -578,7 +604,7 @@ drawRectangle(Game_Framebuffer *framebuffer,f32 realX, f32 realY,f32 width , f32
     {
       u32 *pixel = (u32*)row;  
       for(s32 x = xMin; x < xMax; x++)
-	{
+	{	  
 	  *pixel++ = colorSrc;
 	}
       row += framebuffer->stride;
@@ -593,10 +619,39 @@ struct Menu_item
   f32 size;
 };
 
+internal Playing_sound*
+playSound(Game_State *gameState, Loaded_sound sound)
+{
+  if(!gameState->firstFreePlayingSound)
+    {
+      gameState->firstFreePlayingSound  = (Playing_sound*)pushStruct(&gameState->levelArena, Playing_sound);
+      gameState->firstFreePlayingSound->next = 0;
+    }
+  Playing_sound *playingSound = gameState->firstFreePlayingSound;
+  gameState->firstFreePlayingSound = playingSound->next;
+  
+  playingSound->volume[0] = 1.0f;
+  playingSound->volume[1] = 1.0f;
+  playingSound->loadedSound = sound;
+  
+  playingSound->samplesPlayed = 0;  
+  playingSound->next = gameState->firstPlayingSound;
+  
+  gameState->firstPlayingSound = playingSound;
+  
+  return playingSound;
+}
+
+internal Playing_sound*
+deleteSound(Game_State *gameState, Loaded_sound sound)
+{
+}
+
 internal void
 menu(Game_State *gameState,Game_Framebuffer *framebuffer,Transient_state *transState, Input *input)
 {
   //TODO(shvayko): play menu music
+  playSound(gameState,gameState->menuMusic);
   f32 center = (framebuffer->width / 2.0f) - 50.0f;
 
   local_persist s32 choice = 0;
@@ -643,12 +698,12 @@ menu(Game_State *gameState,Game_Framebuffer *framebuffer,Transient_state *transS
   if(BUTTON_PRESSED(buttonEscape))
     {
       gameState->currentGameState = gameState_gameplay;
-    }
+      //deleteSound(gameState,gameState->menuMusic);
+    }  
 }
 
 #define MAX_LEVEL_HEIGHT   10
 #define MAX_LEVEL_WIDTH    20
-
 internal void
 gameSoundOutput(Game_sound_output *soundOutput,Game_Memory *gameMemory)
 {
@@ -656,11 +711,23 @@ gameSoundOutput(Game_sound_output *soundOutput,Game_Memory *gameMemory)
 }
 
 internal void
-loadLevel(Game_State *gameState, u8 *level)
+loadLevel(Game_State *gameState, u8 *levelMap)
 {
-  gameState->currentLevel.score = 10;
+  // TODO(shvayko): delete this constants for the framebuffer width/height!
+  player.pos.x = 1280.0f / 2.0f;
+  player.pos.y = 980.0f - 20.0f;
+
+  f32 ballStartingPositionX = player.pos.x;
+  f32 ballStartingPositionY = player.pos.y - 200.0f;
+  v2 ballPos = v2(ballStartingPositionX,ballStartingPositionY);
+  v2 up = v2(0.0f,   200.0f);            
+  balls[0] = addNewBall(ballPos, up); // NOTE(shvayko): first ball
+  
+  gameState->currentLevel.score = 0;
+  memset(gameState->currentLevel.powerups,0,sizeof(Powerup) * 200);
+  gameState->nextPowerup = 0;
   nextBrick = 0;  
-  gameState->currentLevel.map = level;
+  gameState->currentLevel.map = levelMap;
   for(u32 y = 0; y < MAX_LEVEL_HEIGHT; y++)
     {
       for(u32 x = 0; x < MAX_LEVEL_WIDTH; x++)
@@ -680,31 +747,21 @@ loadLevel(Game_State *gameState, u8 *level)
 	    }
 	}
     }
-  gameState->currentLevel.bricksCount = nextBrick;
-      
+  gameState->currentLevel.bricksCount = nextBrick;      
 } 
 
-internal Playing_sound*
-playSound(Game_State *gameState, Loaded_sound sound)
+global f32 gScreenCenterX;
+global f32 gScreenCenterY;
+global v2  gScreenCenter;
+
+internal bool
+checkGameOver()
 {
-  if(!gameState->firstFreePlayingSound)
-    {
-      gameState->firstFreePlayingSound  = (Playing_sound*)pushStruct(&gameState->levelArena, Playing_sound);
-      gameState->firstFreePlayingSound->next = 0;
-    }
-  Playing_sound *playingSound = gameState->firstFreePlayingSound;
-  gameState->firstFreePlayingSound = playingSound->next;
+  bool result = false;
+
+  result = ((!balls[0].isActive) && (!balls[1].isActive) && (!balls[2].isActive));
   
-  playingSound->volume[0] = 1.0f;
-  playingSound->volume[1] = 1.0f;
-  playingSound->loadedSound = sound;
-  
-  playingSound->samplesPlayed = 0;  
-  playingSound->next = gameState->firstPlayingSound;
-  
-  gameState->firstPlayingSound = playingSound;
-  
-  return playingSound;
+  return result;
 }
 
 #if DEBUG
@@ -718,7 +775,9 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   debugGlobalGameMemory = gameMemory;
 #endif
   BEGIN_TIME_BLOCK(gameUpdateAndRender);
-  
+   
+
+        
   u8 levelMap2[MAX_LEVEL_HEIGHT][MAX_LEVEL_WIDTH] =
     {
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -732,7 +791,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
     };
-
+  
   u8 *firstMap = (u8*)levelMap2;
 
   u8 levelMap1[MAX_LEVEL_HEIGHT][MAX_LEVEL_WIDTH] =
@@ -748,54 +807,53 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
      {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
     }; 
-
+  
   u8 *secondMap = (u8*)levelMap1;
-  
-  
+
   Game_State *gameState = (Game_State*)gameMemory->permanentStorage; 
   if(!gameState->isInit)
     {      
       initArena(&gameState->levelArena, gameMemory->permanentStorageSize - sizeof(*gameState),
 		(u8*)gameMemory->permanentStorage + sizeof(*gameState));                 
+         
+  gameState->powerupsFlag = 0x00000000;      
+  
+  char *bloop = "bloop_00.wav";
+  gameState->bloop = loadWAVEFile(bloop);
+  char *testMusic = "music_test.wav";
+  gameState->menuMusic = loadWAVEFile(testMusic);
+  
+  gameState->ballBitmap = loadBitmap("ball.bmp");
+  gameState->increaseBitmap = loadBitmap("increase.bmp");
+  gameState->doublePointsBitmap = loadBitmap("points.bmp");
+  gameState->arrowBitmap = loadBitmap("arrow.bmp");
+      
+  gameState->brickWidth  = 64.0f;
+  gameState->brickHeight = 21.0f;
+  gameState->ballWidth   = 10.0f;
+  gameState->ballHeight  = 10.0f;
+  gameState->powerupWidth  = 25.0f;
+  gameState->powerupHeight = 25.0f;
+      
+  gameState->currentLevel.map = firstMap;
 
-      gameState->powerupsFlag = 0x00000000;      
-      
-      char *bloop = "bloop_00.wav";
-      gameState->bloop = loadWAVEFile(bloop);
-      
-      gameState->ballBitmap = loadBitmap("ball.bmp");
-      gameState->increaseBitmap = loadBitmap("increase.bmp");
-      gameState->doublePointsBitmap = loadBitmap("points.bmp");
-      gameState->arrowBitmap = loadBitmap("arrow.bmp");
-      
-      gameState->brickWidth  = 64.0f;
-      gameState->brickHeight = 21.0f;
-      gameState->ballWidth   = 10.0f;
-      gameState->ballHeight  = 10.0f;
-      gameState->powerupWidth  = 25.0f;
-      gameState->powerupHeight = 25.0f;
-      
-      gameState->currentLevel.map = firstMap;
+  gameState->pointsAddition = 20;
 
-      gameState->pointsAddition = 20;
-      
-      loadLevel(gameState, gameState->currentLevel.map);      
-      
-      player.pos.x = framebuffer->width / 2.0f;
-      player.pos.y = framebuffer->height - 20.0f;
-      player.color = v3(255.0f,255.0f,255.0f);
-      player.size  = v2(100.0f, 20.0f);
-      f32 ballStartingPositionX = 500;
-      f32 ballStartingPositionY = 600;
-      v2 ballPos = v2(ballStartingPositionX,ballStartingPositionY);
-      v2 up = v2(0.0f,   -200.0f);            
+  
+  loadLevel(gameState, firstMap);      
 
-      balls[0] = addNewBall(ballPos, up); // NOTE(shvayko): first ball
+  gScreenCenterX = framebuffer->width / 2.0f;
+  gScreenCenterY = framebuffer->height / 2.0f;
+  gScreenCenter = v2(gScreenCenterX, gScreenCenterY);
+  
+  player.color = v3(255.0f,255.0f,255.0f);
+  player.size  = v2(100.0f, 20.0f);
 
-      gameState->currentGameState = gameState_menu;
-      
-      gameState->isInit = true;
+  gameState->currentGameState = gameState_menu;
+  
+  gameState->isInit = true;
     }
+  
   assert(sizeof(Transient_state) < gameMemory->transientStorageSize);
   Transient_state *transState = (Transient_state*)gameMemory->transientStorage;
   if(!transState->isInit)
@@ -807,7 +865,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   switch(gameState->currentGameState)
     {
     case gameState_gameplay:
-      {
+      {	
 #if DEBUG
 	if(BUTTON_IS_DOWN(buttonArrowLeft))
 	  {
@@ -846,7 +904,6 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
   
 	// NOTE(shvayko): collision with player paddle
 
-
 	BEGIN_TIME_BLOCK(checkCollision);
 	for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
 	  {
@@ -868,8 +925,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 		currentBall->velocity.y *= -1.0f; 
 	      }
 	  }
-	// NOTE(shvayko): Simulating balls movement
-	// TODO(shvayko): Create function for simulating the balls
+	// NOTE(shvayko): balls movement
 	for(s32 ballIndex = 0; ballIndex < MAX_BALLS; ballIndex++)
 	  {        
 	    Ball *currentBall = balls + ballIndex;
@@ -888,9 +944,10 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	      }
 	    if(currentBall->pos.y > framebuffer->height)
 	      {
+		currentBall->isActive = false;
 		currentBall->velocity.y *= -1;
 	      }
-	    currentBall->pos = currentBall->pos + (currentBall->velocity * input->dtForFrame);
+	    currentBall->pos = currentBall->pos + (currentBall->velocity * input->dtForFrame);	    
 	  }
 	END_TIME_BLOCK(checkCollision);
 	// NOTE(shvayko): check collision for every block
@@ -987,7 +1044,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	      }
 
 	    drawSprite(framebuffer, currentPowerupBitmap, powerup->startPos);
-      
+	    
 	    if(checkCollision(powerup->startPos.x, powerup->startPos.y,
 			      powerup->startPos.x + gameState->powerupWidth,
 			      powerup->startPos.y + gameState->powerupHeight,
@@ -996,7 +1053,6 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 	      {
 		// NOTE(shvayko): Activation powerup
 		// NOTE(shvayko): All time in seconds.
-		// TODO(shvayko): add bad powerups!
 		switch(powerup->type)
 		  {
 		  case powerup_increasingPaddleSize:
@@ -1088,6 +1144,10 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
 			  gameState->ballWidth ,gameState->ballHeight,
 			  v3(255.0f,0.0f,0.0f));
 	  }
+	if(checkGameOver())
+	  {	    
+	    gameState->currentGameState = gameState_gameIsOver;
+	  }
         drawTextWithNum(transState,framebuffer,v2(0.0f,30.0f), "Score",gameState->currentLevel.score,30.0f);
 	drawRectangle(framebuffer, player.pos.x,player.pos.y, player.size.x,player.size.y, player.color);
 #if DEBUG
@@ -1096,7 +1156,7 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
         drawTextWithNum(transState,framebuffer,v2(0.0f,230.0f), "Y", input->mouseY,30.0f);
 
 	handleDebugCycleCountersCounter(transState,framebuffer);
-#endif
+#endif	
 	if(input->controller.buttonEscape.isDown && input->controller.buttonEscape.changed)
 	  {
 	    gameState->currentGameState = (Game_states)((gameState->currentGameState + 1) % gameState_count);
@@ -1106,6 +1166,21 @@ gameUpdateAndRender(Game_Framebuffer *framebuffer, Input *input, Game_Memory *ga
       {
 	menu(gameState,framebuffer,transState,input);
       }break;
+    case gameState_gameIsOver:
+      {
+	drawText(framebuffer,transState, "Game over", gScreenCenter, 50.0f);
+	v2 pos = v2(gScreenCenter.x, gScreenCenter.y + 100.0f);
+	drawText(framebuffer,transState, "Press ENTER for starting current level again", pos, 50.0f);
+	if(BUTTON_PRESSED(buttonEnter))
+	  {
+	    gameState->currentGameState = gameState_gameplay;
+	    loadLevel(gameState, gameState->currentLevel.map);
+	  }
+      } break;
+    default:
+      {
+	invalidCodePath;
+      }
     }
   END_TIME_BLOCK(gameUpdateAndRender);
 }
@@ -1136,7 +1211,7 @@ void gameGetSoundSamples(Game_Memory *gameMemory, Game_sound_output *gameSoundBu
   // NOTE(shvayko): sound mixer
   
   for(Playing_sound **playingSoundPtr = &gameState->firstPlayingSound;
-      *playingSoundPtr; )
+      *playingSoundPtr;)
     {
       Playing_sound *playingSound = *playingSoundPtr;
       bool soundIsFinished = false;

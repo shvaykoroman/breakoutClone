@@ -838,8 +838,7 @@ int WinMain(HINSTANCE hInstance,
 		  if(SUCCEEDED(gSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor)))
 		    {		  
 		      marker->flipPlayCursor  = playCursor;
-		      marker->flipWriteCursor = writeCursor;
-		    }
+		      marker->flipWriteCursor = writeCursor;		    }
 		  
 #endif	      
 		  s32 ms    = (s32)(delta * 1000.f);

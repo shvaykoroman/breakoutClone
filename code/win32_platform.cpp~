@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <Dsound.h>
 #include "breakout.h"
+bool gGameIsRunning;
 #include "breakout.cpp"
 #include "win32_platform.h"
 #define WINDOW_CLASS_NAME "gameClassName"
@@ -9,8 +10,6 @@
 #define WINDOW_WIDTH      1280
 #define WINDOW_HEIGHT     980
 
-
-global bool gGameIsRunning;
 global Backbuffer gBackbuffer;
 global LPDIRECTSOUNDBUFFER gSecondaryBuffer;
 global HWND gWindowHandle;
@@ -260,6 +259,9 @@ createOpenglContext(HDC deviceContext,HWND window)
 }
 #endif
 
+global s32 mouseX;
+global s32 mouseY;
+
 internal void
 keyboardMessagesProccessing(Keyboard *input)  
 {
@@ -267,25 +269,32 @@ keyboardMessagesProccessing(Keyboard *input)
   while(PeekMessageA(&msg,0,0,0,PM_REMOVE))
     {
       switch(msg.message)
-	{	  
+	{
+	  
 	case WM_LBUTTONUP:
 	case WM_LBUTTONDOWN:
 	  {
-	    if(msg.wParam == MK_RBUTTON)
+	    bool isDown = false;
+	    if(msg.wParam & MK_LBUTTON)
 	      {
-		bool isDown  =  (msg.lParam & (1 << 31)) == 0;
-		bool wasDown =  (msg.lParam & (1 << 30)) != 0;;
-		input->leftMouseButton.isDown = isDown;
-		input->leftMouseButton.changed = isDown != wasDown;
+		isDown = true;
 	      }
+	    u32 mask = 0x0000FFFF;
+	    mouseX = msg.lParam & (mask); 
+	    mouseY = (msg.lParam >> 16) & (mask);
+	    
+	    input->leftMouseButton.isDown = isDown;
 	  }break;
 	case WM_RBUTTONUP: 
 	case WM_RBUTTONDOWN:
 	  {
-	    bool isDown  =  (msg.lParam & (1 << 31)) == 0;
-	    bool wasDown =  (msg.lParam & (1 << 30)) != 0;;
+	    bool isDown = false;
+	    
+	    if(msg.wParam & MK_RBUTTON)
+	      {	
+		isDown = true;
+	      }	    
 	    input->rightMouseButton.isDown = isDown;
-	    input->rightMouseButton.changed = isDown != wasDown;
 	  }break;
 	case WM_SYSKEYDOWN:
 	case WM_KEYUP:	  
@@ -337,6 +346,17 @@ keyboardMessagesProccessing(Keyboard *input)
 		      input->buttonArrowUp.isDown = isDown;
 		      input->buttonArrowUp.changed = isDown != wasDown;
 		    }break;
+		  case VK_RETURN:
+		    {
+		      input->buttonEnter.isDown = isDown;
+		      input->buttonEnter.changed = isDown != wasDown;
+		    }break;
+		  case VK_ESCAPE:
+		    {
+		      input->buttonEscape.isDown = isDown;
+		      input->buttonEscape.changed = isDown != wasDown;
+		    }break;
+		    
 #if DEBUG
 		  case 'P':
 		    {
@@ -647,17 +667,21 @@ int WinMain(HINSTANCE hInstance,
 	  HDC deviceContext = GetDC(window);	  
 	  LARGE_INTEGER lastTime = getClockValue();
 	  LARGE_INTEGER flipWallClock = getClockValue();	  
-
+	  u64 startCycleCount = __rdtsc();
+	  
 	  Input input[2] = {};
 	  Input *newInput = &input[0];
 	  Input *oldInput = &input[1];	  
 	  while(gGameIsRunning)	    
 	    {
-	      POINT mousePos;
+	      /*POINT mousePos;
 	      GetCursorPos(&mousePos);
 	      ScreenToClient(window, &mousePos);
 	      newInput->mouseX = mousePos.x;
-	      newInput->mouseY = mousePos.y;	      
+	      newInput->mouseY = mousePos.y;	      */
+
+	      newInput->mouseX = mouseX;
+	      newInput->mouseY = mouseY;	      
 	      
 	      newInput->dtForFrame = targetSecondsPerFrame;
 	      Keyboard *oldKeyboardInput = &oldInput->controller;
@@ -798,6 +822,8 @@ int WinMain(HINSTANCE hInstance,
 		  currentTime = getClockValue();
 		  delta = getDifferenceTime(currentTime,lastTime) / (f32)performanceFreq;	      	      
 		  Window_dim dim = getWindowDim(window);
+		  u64 endCycleCount = __rdtsc();
+		  u64 cycleCountDiff = endCycleCount - startCycleCount;
 #if 0
 #if DEBUG
 		  drawDebugSyncAudioDisplay(&gBackbuffer,&soundOutput, debugTimeMarkers, debugTimeMarkerIndex - 1,
@@ -819,9 +845,10 @@ int WinMain(HINSTANCE hInstance,
 		  s32 ms    = (s32)(delta * 1000.f);
 		  s32 FPS   = (s32)(1.f/delta);
 		  lastTime = currentTime;
+		  startCycleCount = endCycleCount;
 #if 1
 		  char textBuffer[255];
-		  wsprintfA(textBuffer, "ms: %d; fps: %d\n", ms, FPS);
+		  wsprintfA(textBuffer, "ms: %d; fps: %d cycles:%d\n", ms, FPS, cycleCountDiff);
 		  OutputDebugStringA(textBuffer);
 #endif
 		  debugTimeMarkerIndex++;
@@ -843,8 +870,7 @@ int WinMain(HINSTANCE hInstance,
   else
     {
       win32ErrorMessage(gWindowHandle, "Window Class not registred", WIN32_FATAL_ERROR);
-    }
-  
+    }  
   return 0;  
 }
 

@@ -389,7 +389,8 @@ enum Game_states
   {
    gameState_menu,
    gameState_gameplay,
-
+   gameState_gameIsOver,
+   
    gameState_count
   };
 
@@ -421,8 +422,10 @@ struct Game_State
   s32 pointsAddition;
   
   Level currentLevel;
-    
+  
   Loaded_sound bloop;
+  Loaded_sound menuMusic;
+  
   Playing_sound *firstPlayingSound;
   Playing_sound *firstFreePlayingSound;
 
