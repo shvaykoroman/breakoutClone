@@ -1,4 +1,4 @@
- #include <stdint.h>
+#include <stdint.h>
 
 #define PI 3.14159265359f
 #define DEBUG 1
@@ -30,77 +30,109 @@ typedef double   f64;
 
 #define MAX_BRICKS 200
 
+#define DOUBLE_POINTS        (1 << 0) // 1
+#define ADDITIONAL_BALLS     (1 << 1) // 2
+#define INCREASE_PLAYER_SIZE (1 << 2) // 4 
+
+#define SET_FLAG(n,f)  ((n) |= (f))
+#define CHECK_FLAG(n,f)((n) & (f))
+#define CLEAR_FLAG(n,f)((n) &= ~(f))
+
+
+
+inline void
+zeroSize(size_t size, void *ptr)
+{
+    u8* byte = (u8*)ptr;
+    while(size--)
+    {
+        *byte++ = 0;
+    }
+}
+
+
+internal inline s32
+roundFromFloatToInt(f32 x)
+{
+    s32 result = 0;
+    
+    result = (s32)(x + 0.5f);
+    
+    return result;
+}
+
+
 struct Game_Framebuffer
 {
-  s32 width;
-  s32 height;
-  s32 stride;
-
-  void *memory;
+    s32  width;
+    s32 height;
+    s32 stride;
+    
+    void *memory;
 };
 
 struct Button_status
 {
-  bool isDown;
-  bool changed;
+    bool isDown;
+    bool changed;
 };
 
 struct Keyboard
 {
-  union
-  {
-    struct
-    {     
-      Button_status buttonUp;
-      Button_status buttonDown;
-      Button_status buttonLeft;
-      Button_status buttonRight;
-      Button_status buttonArrowLeft;
-      Button_status buttonArrowRight;
-      Button_status buttonArrowUp;
-      Button_status buttonArrowDown;
-      Button_status buttonEnter;
-      Button_status buttonEscape;
-      
-      Button_status leftMouseButton;
-      Button_status rightMouseButton;
-    };
-    Button_status buttons[12];
-  };  
+    union
+    {
+        struct
+        {     
+            Button_status buttonUp;
+            Button_status buttonDown;
+            Button_status buttonLeft;
+            Button_status buttonRight;
+            Button_status buttonArrowLeft;
+            Button_status buttonArrowRight;
+            Button_status buttonArrowUp;
+            Button_status buttonArrowDown;
+            Button_status buttonEnter;
+            Button_status buttonEscape;
+            
+            Button_status leftMouseButton;
+            Button_status rightMouseButton;
+        };
+        Button_status buttons[12];
+    };  
 };
 struct Input
 {
-  s32 mouseX, mouseY;
-  
-  f32 dtForFrame;
-  Keyboard controller;
+    s32 mouseX, mouseY;
+    
+    f32 dtForFrame;
+    Keyboard controller;
 };
 
 struct Debug_cycle_counters
 {
-  u64 counter;
-  s32 hitCount;
+    u64 counter;
+    s32 hitCount;
 };
 
 enum
 {
- debugCycleCounter_gameUpdateAndRender,
- debugCycleCounter_checkCollision,
- debugCycleCounter_drawRectangle,
- 
- debugCycleCounter_count
+    debugCycleCounter_gameUpdateAndRender,
+    debugCycleCounter_checkCollision,
+    debugCycleCounter_drawRectangle,
+    
+    debugCycleCounter_count
 };
 
 struct Game_Memory
 {
-  void *permanentStorage;
-  s64 permanentStorageSize;
-
-  void *transientStorage;
-  s64 transientStorageSize;
-
+    void *permanentStorage;
+    s64 permanentStorageSize;
+    
+    void *transientStorage;
+    s64 transientStorageSize;
+    
 #if DEBUG
-  Debug_cycle_counters debugCounter[debugCycleCounter_count];
+    Debug_cycle_counters debugCounter[debugCycleCounter_count];
 #endif
 };
 
@@ -111,99 +143,112 @@ extern struct Game_Memory *debugGlobalGameMemory;
 
 typedef struct v2
 {  
-  union
-  {
-    f32 vec2[2];
-    struct
+    union
     {
-      f32 x;
-      f32 y;
+        f32 e[2];
+        struct
+        {
+            f32 x;
+            f32 y;
+        };
     };
-  };
 }v2;
 
 #define v2(x,y) v2_create(x,y)
 
 v2 v2_create(f32 x, f32 y)
 {
-  v2 result;
-
-  result = {x,y};
-  
-  return result;
+    v2 result;
+    
+    result = {x,y};
+    
+    return result;
 }
 
 typedef struct v3
 {  
-  union
-  {
-    struct
+    union
     {
-      f32 r;
-      f32 g;
-      f32 b;
+        f32 e[3];
+        struct
+        {
+            f32 r;
+            f32 g;
+            f32 b;
+        };
+        struct
+        {
+            f32 x;
+            f32 y;
+            f32 z;
+        };
     };
-    struct
-    {
-      f32 x;
-      f32 y;
-      f32 z;
-    };
-  };
 }v3;
 
 #define v3(x,y,z) v3_create(x,y,z)
 
 v3 v3_create(f32 x, f32 y, f32 z)
 {
-  v3 result;
-
-  result = {x,y,z};
-  
-  return result;
+    v3 result;
+    
+    result = {x,y,z};
+    
+    return result;
 }
 
 inline v2
 operator+(v2 x, v2 y)
 {
-  v2 result = v2(0,0);
-
-  result.x = x.x+y.x;
-  result.y = x.y+y.y;
-  
-  return result;
+    v2 result = v2(0,0);
+    
+    result.x = x.x+y.x;
+    result.y = x.y+y.y;
+    
+    return result;
 }
 
 inline v2
 operator-(v2 x, v2 y)
 {
-  v2 result = v2(0,0);
-
-  result.x = x.x-y.x;
-  result.y = x.y-y.y;
-
-  return result;
+    v2 result = v2(0,0);
+    
+    result.x = x.x-y.x;
+    result.y = x.y-y.y;
+    
+    return result;
 }
 
 inline v2
 operator*(v2 vec,f32 value)
 {
-  v2 result = v2(0,0);
-
-  result.x = vec.x * value;
-  result.y = vec.y * value;
-  
-  return result;
+    v2 result = v2(0,0);
+    
+    result.x = vec.x * value;
+    result.y = vec.y * value;
+    
+    return result;
 }
+
+inline v2
+operator-(v2 vec,f32 value)
+{
+    v2 result = v2(0,0);
+    
+    result.x = vec.x - value;
+    result.y = vec.y - value;
+    
+    return result;
+}
+
 
 inline f32
 dotProduct(v2 vecA, v2 vecB)
 {
-  f32 result = 0;
-
-  result = (vecA.x*vecB.x) + (vecA.y * vecB.y);
-  
-  return result;
+    f32 result = 0;
+    
+    result = (vecA.x*vecB.x) + (vecA.y * vecB.y);
+    
+    return result;
 }
 
 #include <math.h>
@@ -211,132 +256,132 @@ dotProduct(v2 vecA, v2 vecB)
 inline v2
 normalizeVector(v2 x)
 {
-  v2 result = v2(0.0f, 0.0f);
-  f64 length = sqrt(x.x * x.x + x.y * x.y);
-  result.x = (f32)(x.x / length);
-  result.y = (f32)(x.y / length);
-  return result;  
+    v2 result = v2(0.0f, 0.0f);
+    f64 length = sqrt(x.x * x.x + x.y * x.y);
+    result.x = (f32)(x.x / length);
+    result.y = (f32)(x.y / length);
+    return result;  
 }
 
 
 struct File_content
 {
-  u32  size;
-  void *memory;
+    u32  size;
+    void *memory;
 };
 
 struct Game_sound_output
 {
-  s16 *samples;
-  u32 samplesToOutput;
-  u32 samplesPerSec;
+    s16 *samples;
+    u32 samplesToOutput;
+    u32 samplesPerSec;
 };
 
 
 struct Loaded_sound
 {
-  u32 sampleCount;
-  u32 channelCount;
-  s16 *samples[2];
+    u32 sampleCount;
+    u32 channelCount;
+    s16 *samples[2];
 };
 
 struct Playing_sound
 {
-  f32 volume[2];
-  u32 samplesPlayed;
-  Loaded_sound loadedSound;
-  Playing_sound *next;  
+    f32 volume[2];
+    u32 samplesPlayed;
+    Loaded_sound loadedSound;
+    Playing_sound *next;  
 };
 
 
 struct Brick
 {
-  v3 color;
-  v2 pos;   
-
-  bool destroyed;
+    v3 color;
+    v2 pos;   
+    
+    bool destroyed;
 };
 
 
 enum Powerup_type
 {
- powerup_doublePoints,
- powerup_additinonalBalls,
- powerup_increasingPaddleSize,
-
- powerup_count
+    powerup_doublePoints,
+    powerup_additinonalBalls,
+    powerup_increasingPaddleSize,
+    
+    powerup_count
 };
 
 
 struct Powerup
 {
-  v2 startPos;
-  bool taken;
-  
-  Powerup_type type;
+    v2 startPos;
+    bool taken;
+    
+    Powerup_type type;
 };
 
 
 struct Level
 {
-  u32 width;
-  u32 height;
-  u32 bricksCount;
-  s32 score;
-  Brick bricks[MAX_BRICKS];
-  Powerup powerups[MAX_BRICKS];
-  
-  u8 *map;  
+    u32 width;
+    u32 height;
+    u32 bricksCount;
+    s32 score;
+    Brick bricks[MAX_BRICKS];
+    Powerup powerups[MAX_BRICKS];
+    
+    u8 *map;  
 };
 
 
 struct Memory_arena
 {
-  u8 *base;
-  size_t size;
-  size_t used;
-
-  s32 tempCount;
+    u8 *base;
+    size_t size;
+    size_t used;
+    
+    s32 tempCount;
 };
 
 struct Transient_state
 {
-  Memory_arena transArena;
-  bool isInit;
+    Memory_arena transArena;
+    bool isInit;
 };
 
 
 struct Temp_memory
 {
-  Memory_arena *arena;
-  size_t used;
+    Memory_arena *arena;
+    size_t used;
 };
 
 
 struct Ball
 {
-  v2 pos;
-  v2 size;
-  v2 velocity;
-
-  bool isActive; // TODO(shvayko): may be bit flag instead boolean type?
+    v2 pos;
+    v2 size;
+    v2 velocity;
+    
+    bool isActive; // TODO(shvayko): may be bit flag instead boolean type?
 };  
 
 struct Player
 {
-  v3 color;
-  v2 pos;
-  v2 size;
+    v3 color;
+    v2 pos;
+    v2 size;
 };
 
 
 internal void
 initArena(Memory_arena *arena, size_t size, u8 *base)
 {
-  arena->base = base;
-  arena->used = 0;
-  arena->size = size;
-  arena->tempCount = 0;
+    arena->base = base;
+    arena->used = 0;
+    arena->size = size;
+    arena->tempCount = 0;
 }
 
 #define pushStruct(arena, type) _pushSize(arena,sizeof(type))
@@ -345,93 +390,93 @@ initArena(Memory_arena *arena, size_t size, u8 *base)
 inline void*
 _pushSize(Memory_arena *arena, size_t size)
 {
-  void *result = (arena->base + arena->used);
-  arena->used += size;
-  return result;
+    void *result = (arena->base + arena->used);
+    arena->used += size;
+    return result;
 }
 
 inline Temp_memory
 beginTempMemory(Memory_arena *arena)
 {
-  Temp_memory result;
-
-  result.arena = arena;
-  result.used = arena->used;
-  arena->tempCount++;
-  return result;
+    Temp_memory result;
+    
+    result.arena = arena;
+    result.used = arena->used;
+    arena->tempCount++;
+    return result;
 }
 
 inline void
 endTempMemory(Temp_memory tempMemory)
 {
-  Memory_arena *arena = tempMemory.arena;
-  assert(arena->used >= tempMemory.used);
-  arena->used = tempMemory.used;
-  
-  arena->tempCount--;
+    Memory_arena *arena = tempMemory.arena;
+    assert(arena->used >= tempMemory.used);
+    arena->used = tempMemory.used;
+    
+    arena->tempCount--;
 }
 
 inline void
 checkArena(Memory_arena *arena)
 {
-  assert(arena->tempCount == 0);
+    assert(arena->tempCount == 0);
 }
 
 struct Loaded_bitmap
 {
-  s32 width;
-  s32 height;
-  s32 stride;
-  void *memory;
+    s32 width;
+    s32 height;
+    s32 stride;
+    void *memory;
 };
 
 enum Game_states
-  {
-   gameState_menu,
-   gameState_gameplay,
-   gameState_gameIsOver,
-   
-   gameState_count
-  };
+{
+    gameState_menu,
+    gameState_gameplay,
+    gameState_gameIsOver,
+    
+    gameState_count
+};
 
 struct Game_State
 {
-  Memory_arena levelArena;
-  Memory_arena transArena;
-  
-  f32 brickWidth;
-  f32 brickHeight;
-  f32 ballWidth;
-  f32 ballHeight;
-  f32 powerupWidth;
-  f32 powerupHeight;
-  s32 bricksCount;
-
-  s32 powerupsFlag;
-  f32 increasingPaddleSizeTime;
-  f32 doublePointsTime;
-  f32 additionalBallsTime;  
-  u32 nextPowerup;
-  Loaded_bitmap ballBitmap;
-  Loaded_bitmap increaseBitmap;
-  Loaded_bitmap doublePointsBitmap;
-  Loaded_bitmap arrowBitmap;
-  
-  Game_states currentGameState;
-  
-  s32 pointsAddition;
-  
-  Level currentLevel;
-  
-  Loaded_sound bloop;
-  Loaded_sound menuMusic;
-  
-  Playing_sound *firstPlayingSound;
-  Playing_sound *firstFreePlayingSound;
-
-  Loaded_bitmap glyphs[80];
-  
-  bool isInit;
+    Memory_arena levelArena;
+    Memory_arena transArena;
+    
+    v2 framebufferSize;
+    
+    v2 brickSize;
+    v2 ballSize;
+    f32 powerupWidth;
+    f32 powerupHeight;
+    s32 bricksCount;
+    
+    s32 powerupsFlag;
+    f32 increasingPaddleSizeTime;
+    f32 doublePointsTime;
+    f32 additionalBallsTime;  
+    u32 nextPowerup;
+    Loaded_bitmap ballBitmap;
+    Loaded_bitmap increaseBitmap;
+    Loaded_bitmap doublePointsBitmap;
+    Loaded_bitmap arrowBitmap;
+    
+    Game_states currentGameState;
+    
+    s32 pointsAddition;
+    
+    Level currentLevel;
+    
+    Loaded_sound bloop;
+    Loaded_sound menuMusic;
+    
+    Playing_sound *firstPlayingSound;
+    Playing_sound *firstFreePlayingSound;
+    
+    Loaded_bitmap glyphs[80];
+    
+    bool isInit;
 };
 
 
