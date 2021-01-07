@@ -182,3 +182,40 @@ drawRectangle(Game_Framebuffer *framebuffer,v2 minP,v2 maxP, v3 color)
     END_TIME_BLOCK(drawRectangle);
 }
 
+
+internal void
+drawCircle(Game_Framebuffer *framebuffer, v2 center, f32 radius, v3 color)
+{
+	BEGIN_TIME_BLOCK(drawCircle);
+
+	s32 xMin = roundFromFloatToInt(center.x - radius);
+	s32 yMin = roundFromFloatToInt(center.y - radius);
+
+	s32 xMax = roundFromFloatToInt(center.x + radius);
+	s32 yMax = roundFromFloatToInt(center.y + radius);
+
+	u32 colorSrc = (((u32)(color.r*255.0f) << 16) |
+		((u32)(color.g*255.0f) << 8) |
+		((u32)(color.b*255.0f) << 0));
+	u8 *row = (u8*)framebuffer->memory + (xMin * 4) + (yMin * framebuffer->stride);
+
+	f32 sqRadius = sq(radius);
+
+	for (s32 y = yMin; y < yMax; y++)
+	{
+		u32 *pixel = (u32*)row;
+		for (s32 x = xMin; x < xMax; x++)
+		{
+			f32 distX = (center.x - x + 0.5f);
+			f32 distY = (center.y - y + 0.5f);
+			f32 dist = sq(distX) + sq(distY);
+
+			if (dist <= sqRadius)
+			{
+				pixel[x - xMin] = colorSrc;
+			}
+		}
+		row += framebuffer->stride;
+	}
+	END_TIME_BLOCK(drawCircle);
+}
